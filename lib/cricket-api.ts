@@ -3,7 +3,7 @@ import { IPLMatch } from "@/types";
 const CRICAPI_BASE = "https://api.cricapi.com/v1";
 
 /** Default key for this app; override anytime with `CRICAPI_KEY` in env (recommended if the repo is public). */
-const CRICAPI_KEY_DEFAULT = "9ce172b4-6659-4f73-970f-dadecf9c4329";
+const CRICAPI_KEY_DEFAULT = "e00bd3cb-0080-4097-b0ef-2eec8f79448d";
 
 const API_KEY = (process.env.CRICAPI_KEY?.trim() || CRICAPI_KEY_DEFAULT) || undefined;
 
