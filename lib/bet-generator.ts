@@ -1,213 +1,244 @@
-import { BetLine, BetCategory, IPLMatch, TeamStats, VenueStats } from "@/types";
-import { generateId } from "@/lib/utils";
+import { BetCategory, BetLine, IPLMatch, TeamStats, VenueStats } from "@/types";
 
-// IPL 2026 team stats based on 2024-2025 performance + retention strength
 const TEAM_STATS: Record<string, TeamStats> = {
   "Chennai Super Kings": {
-    battingStrength: 8.0,
-    powerplayAvg: 50,
-    avgInningsScore: 172,
-    sixesPerGame: 7.5,
-    foursPerGame: 14,
-    topBatsmen: ["Ruturaj Gaikwad", "Sanju Samson", "Shivam Dube"],
-    topBowlers: ["Khaleel Ahmed", "Nathan Ellis", "Noor Ahmad"],
+    battingStrength: 7.4,
     bowlingStrength: 7.5,
-    avgWicketsGiven: 6.8,
-  },
-  "Mumbai Indians": {
-    battingStrength: 8.5,
-    powerplayAvg: 54,
-    avgInningsScore: 176,
-    sixesPerGame: 8.5,
-    foursPerGame: 14,
-    topBatsmen: ["Rohit Sharma", "Suryakumar Yadav", "Tilak Varma"],
-    topBowlers: ["Jasprit Bumrah", "Trent Boult", "Deepak Chahar"],
-    bowlingStrength: 8.5,
-    avgWicketsGiven: 6.5,
-  },
-  "Royal Challengers Bengaluru": {
-    battingStrength: 9.0,
-    powerplayAvg: 56,
-    avgInningsScore: 180,
-    sixesPerGame: 9.5,
-    foursPerGame: 15,
-    topBatsmen: ["Virat Kohli", "Phil Salt", "Rajat Patidar"],
-    topBowlers: ["Josh Hazlewood", "Bhuvneshwar Kumar", "Krunal Pandya"],
-    bowlingStrength: 8.0,
-    avgWicketsGiven: 6.8,
-  },
-  "Royal Challengers Bangalore": {
-    battingStrength: 9.0,
-    powerplayAvg: 56,
-    avgInningsScore: 180,
-    sixesPerGame: 9.5,
-    foursPerGame: 15,
-    topBatsmen: ["Virat Kohli", "Phil Salt", "Rajat Patidar"],
-    topBowlers: ["Josh Hazlewood", "Bhuvneshwar Kumar", "Krunal Pandya"],
-    bowlingStrength: 8.0,
-    avgWicketsGiven: 6.8,
-  },
-  "Kolkata Knight Riders": {
-    battingStrength: 8.5,
-    powerplayAvg: 53,
-    avgInningsScore: 175,
-    sixesPerGame: 9.0,
-    foursPerGame: 14,
-    topBatsmen: ["Rinku Singh", "Sunil Narine", "Cameron Green"],
-    topBowlers: ["Varun Chakravarthy", "Harshit Rana", "Matheesha Pathirana"],
-    bowlingStrength: 8.5,
-    avgWicketsGiven: 6.5,
-  },
-  "Delhi Capitals": {
-    battingStrength: 7.5,
     powerplayAvg: 49,
     avgInningsScore: 168,
-    sixesPerGame: 7.0,
-    foursPerGame: 13,
-    topBatsmen: ["Jake Fraser-McGurk", "Rishabh Pant", "Tristan Stubbs"],
-    topBowlers: ["Axar Patel", "Kuldeep Yadav", "Mukesh Kumar"],
-    bowlingStrength: 7.5,
-    avgWicketsGiven: 7.0,
+    sixesPerGame: 7.3,
+    foursPerGame: 14.2,
+    avgWicketsLost: 6.7,
+    avgTopBatterScore: 56,
+    avgLeadBowlerWickets: 2.0,
+    avgExtrasConceded: 11.0,
+  },
+  "Mumbai Indians": {
+    battingStrength: 8.8,
+    bowlingStrength: 8.3,
+    powerplayAvg: 54,
+    avgInningsScore: 180,
+    sixesPerGame: 9.5,
+    foursPerGame: 15.0,
+    avgWicketsLost: 6.4,
+    avgTopBatterScore: 63,
+    avgLeadBowlerWickets: 2.1,
+    avgExtrasConceded: 10.5,
+  },
+  "Royal Challengers Bengaluru": {
+    battingStrength: 8.6,
+    bowlingStrength: 7.8,
+    powerplayAvg: 53,
+    avgInningsScore: 178,
+    sixesPerGame: 9.0,
+    foursPerGame: 15.0,
+    avgWicketsLost: 6.8,
+    avgTopBatterScore: 60,
+    avgLeadBowlerWickets: 1.9,
+    avgExtrasConceded: 10.8,
+  },
+  "Royal Challengers Bangalore": {
+    battingStrength: 8.6,
+    bowlingStrength: 7.8,
+    powerplayAvg: 53,
+    avgInningsScore: 178,
+    sixesPerGame: 9.0,
+    foursPerGame: 15.0,
+    avgWicketsLost: 6.8,
+    avgTopBatterScore: 60,
+    avgLeadBowlerWickets: 1.9,
+    avgExtrasConceded: 10.8,
+  },
+  "Kolkata Knight Riders": {
+    battingStrength: 8.4,
+    bowlingStrength: 8.2,
+    powerplayAvg: 52,
+    avgInningsScore: 176,
+    sixesPerGame: 8.9,
+    foursPerGame: 14.5,
+    avgWicketsLost: 6.5,
+    avgTopBatterScore: 59,
+    avgLeadBowlerWickets: 2.0,
+    avgExtrasConceded: 10.6,
+  },
+  "Delhi Capitals": {
+    battingStrength: 7.8,
+    bowlingStrength: 7.7,
+    powerplayAvg: 49,
+    avgInningsScore: 170,
+    sixesPerGame: 7.4,
+    foursPerGame: 13.7,
+    avgWicketsLost: 7.1,
+    avgTopBatterScore: 55,
+    avgLeadBowlerWickets: 1.9,
+    avgExtrasConceded: 11.3,
   },
   "Sunrisers Hyderabad": {
-    battingStrength: 9.5,
-    powerplayAvg: 60,
-    avgInningsScore: 185,
-    sixesPerGame: 11.0,
-    foursPerGame: 16,
-    topBatsmen: ["Travis Head", "Abhishek Sharma", "Heinrich Klaasen"],
-    topBowlers: ["Pat Cummins", "Jaydev Unadkat", "Brydon Carse"],
-    bowlingStrength: 7.5,
-    avgWicketsGiven: 7.2,
+    battingStrength: 9.2,
+    bowlingStrength: 7.6,
+    powerplayAvg: 58,
+    avgInningsScore: 184,
+    sixesPerGame: 10.8,
+    foursPerGame: 15.7,
+    avgWicketsLost: 6.9,
+    avgTopBatterScore: 64,
+    avgLeadBowlerWickets: 1.9,
+    avgExtrasConceded: 11.6,
   },
   "Punjab Kings": {
-    battingStrength: 7.5,
-    powerplayAvg: 51,
-    avgInningsScore: 170,
-    sixesPerGame: 8.0,
-    foursPerGame: 14,
-    topBatsmen: ["Prabhsimran Singh", "Shashank Singh", "Marcus Stoinis"],
-    topBowlers: ["Arshdeep Singh", "Harshal Patel", "Yuzvendra Chahal"],
-    bowlingStrength: 7.5,
-    avgWicketsGiven: 7.0,
+    battingStrength: 8.0,
+    bowlingStrength: 7.4,
+    powerplayAvg: 50,
+    avgInningsScore: 171,
+    sixesPerGame: 8.2,
+    foursPerGame: 14.1,
+    avgWicketsLost: 7.0,
+    avgTopBatterScore: 56,
+    avgLeadBowlerWickets: 1.8,
+    avgExtrasConceded: 11.2,
   },
   "Rajasthan Royals": {
-    battingStrength: 8.5,
-    powerplayAvg: 54,
-    avgInningsScore: 176,
+    battingStrength: 8.1,
+    bowlingStrength: 7.9,
+    powerplayAvg: 52,
+    avgInningsScore: 174,
     sixesPerGame: 8.5,
-    foursPerGame: 14,
-    topBatsmen: ["Yashasvi Jaiswal", "Sanju Samson", "Riyan Parag"],
-    topBowlers: ["Trent Boult", "Yuzvendra Chahal", "Ravichandran Ashwin"],
-    bowlingStrength: 8.0,
-    avgWicketsGiven: 6.8,
+    foursPerGame: 14.2,
+    avgWicketsLost: 6.6,
+    avgTopBatterScore: 58,
+    avgLeadBowlerWickets: 2.0,
+    avgExtrasConceded: 10.7,
   },
   "Gujarat Titans": {
-    battingStrength: 7.5,
-    powerplayAvg: 50,
-    avgInningsScore: 168,
-    sixesPerGame: 7.5,
-    foursPerGame: 13,
-    topBatsmen: ["Shubman Gill", "Sai Sudharsan", "Rahul Tewatia"],
-    topBowlers: ["Mohammed Shami", "Rashid Khan", "Mohit Sharma"],
-    bowlingStrength: 8.5,
-    avgWicketsGiven: 6.5,
+    battingStrength: 7.7,
+    bowlingStrength: 8.3,
+    powerplayAvg: 48,
+    avgInningsScore: 169,
+    sixesPerGame: 7.4,
+    foursPerGame: 13.5,
+    avgWicketsLost: 6.4,
+    avgTopBatterScore: 54,
+    avgLeadBowlerWickets: 2.1,
+    avgExtrasConceded: 10.4,
   },
   "Lucknow Super Giants": {
-    battingStrength: 7.5,
-    powerplayAvg: 51,
-    avgInningsScore: 170,
-    sixesPerGame: 7.5,
-    foursPerGame: 13,
-    topBatsmen: ["Nicholas Pooran", "Ayush Badoni", "Devdutt Padikkal"],
-    topBowlers: ["Mohammed Shami", "Ravi Bishnoi", "Mohsin Khan"],
-    bowlingStrength: 8.0,
-    avgWicketsGiven: 6.8,
+    battingStrength: 8.0,
+    bowlingStrength: 7.8,
+    powerplayAvg: 50,
+    avgInningsScore: 172,
+    sixesPerGame: 8.1,
+    foursPerGame: 13.8,
+    avgWicketsLost: 6.8,
+    avgTopBatterScore: 57,
+    avgLeadBowlerWickets: 1.9,
+    avgExtrasConceded: 10.9,
   },
 };
 
 const DEFAULT_TEAM_STATS: TeamStats = {
-  battingStrength: 7.5,
-  powerplayAvg: 52,
+  battingStrength: 7.8,
+  bowlingStrength: 7.8,
+  powerplayAvg: 50,
   avgInningsScore: 172,
   sixesPerGame: 8.0,
-  foursPerGame: 14,
-  topBatsmen: ["Batsman A", "Batsman B", "Batsman C"],
-  topBowlers: ["Bowler A", "Bowler B", "Bowler C"],
-  bowlingStrength: 7.5,
-  avgWicketsGiven: 7.0,
+  foursPerGame: 14.0,
+  avgWicketsLost: 6.8,
+  avgTopBatterScore: 56,
+  avgLeadBowlerWickets: 2.0,
+  avgExtrasConceded: 11.0,
 };
 
 const VENUE_STATS: Record<string, VenueStats> = {
   wankhede: {
-    name: "Wankhede",
-    avgFirstInnings: 178,
-    avgTotal: 348,
-    pitchFactor: 1.05,
+    name: "Wankhede Stadium",
+    avgFirstInnings: 181,
+    avgTotal: 356,
+    pitchFactor: 1.06,
     avgSixes: 18,
   },
   chinnaswamy: {
-    name: "Chinnaswamy",
-    avgFirstInnings: 185,
-    avgTotal: 362,
-    pitchFactor: 1.10,
+    name: "M. Chinnaswamy Stadium",
+    avgFirstInnings: 186,
+    avgTotal: 365,
+    pitchFactor: 1.1,
     avgSixes: 21,
   },
   "eden gardens": {
     name: "Eden Gardens",
-    avgFirstInnings: 172,
-    avgTotal: 338,
-    pitchFactor: 1.00,
-    avgSixes: 16,
+    avgFirstInnings: 176,
+    avgTotal: 345,
+    pitchFactor: 1.02,
+    avgSixes: 17,
   },
   chidambaram: {
-    name: "Chidambaram",
-    avgFirstInnings: 162,
-    avgTotal: 318,
-    pitchFactor: 0.92,
+    name: "MA Chidambaram Stadium",
+    avgFirstInnings: 165,
+    avgTotal: 323,
+    pitchFactor: 0.94,
     avgSixes: 13,
   },
   "rajiv gandhi": {
-    name: "Rajiv Gandhi Stadium",
-    avgFirstInnings: 176,
-    avgTotal: 344,
-    pitchFactor: 1.02,
-    avgSixes: 17,
+    name: "Rajiv Gandhi International Stadium",
+    avgFirstInnings: 178,
+    avgTotal: 349,
+    pitchFactor: 1.03,
+    avgSixes: 18,
   },
   "sawai mansingh": {
-    name: "Sawai Mansingh",
-    avgFirstInnings: 170,
-    avgTotal: 334,
-    pitchFactor: 0.98,
+    name: "Sawai Mansingh Stadium",
+    avgFirstInnings: 171,
+    avgTotal: 336,
+    pitchFactor: 0.99,
     avgSixes: 15,
+  },
+  barsapara: {
+    name: "Barsapara Cricket Stadium",
+    avgFirstInnings: 174,
+    avgTotal: 341,
+    pitchFactor: 1.01,
+    avgSixes: 16,
   },
   "arun jaitley": {
     name: "Arun Jaitley Stadium",
-    avgFirstInnings: 168,
-    avgTotal: 330,
-    pitchFactor: 0.96,
-    avgSixes: 14,
+    avgFirstInnings: 172,
+    avgTotal: 338,
+    pitchFactor: 1.0,
+    avgSixes: 16,
   },
   "narendra modi": {
     name: "Narendra Modi Stadium",
-    avgFirstInnings: 174,
-    avgTotal: 342,
-    pitchFactor: 1.00,
+    avgFirstInnings: 175,
+    avgTotal: 343,
+    pitchFactor: 1.01,
     avgSixes: 16,
   },
   mullanpur: {
-    name: "MYSI Stadium",
-    avgFirstInnings: 175,
-    avgTotal: 344,
-    pitchFactor: 1.02,
-    avgSixes: 17,
+    name: "Mullanpur",
+    avgFirstInnings: 174,
+    avgTotal: 341,
+    pitchFactor: 1.0,
+    avgSixes: 16,
   },
   ekana: {
     name: "Ekana Stadium",
-    avgFirstInnings: 166,
-    avgTotal: 326,
-    pitchFactor: 0.94,
+    avgFirstInnings: 167,
+    avgTotal: 328,
+    pitchFactor: 0.95,
     avgSixes: 13,
+  },
+  dharamsala: {
+    name: "Dharamsala",
+    avgFirstInnings: 183,
+    avgTotal: 360,
+    pitchFactor: 1.07,
+    avgSixes: 18,
+  },
+  raipur: {
+    name: "Raipur",
+    avgFirstInnings: 176,
+    avgTotal: 344,
+    pitchFactor: 1.01,
+    avgSixes: 16,
   },
 };
 
@@ -215,350 +246,338 @@ const DEFAULT_VENUE: VenueStats = {
   name: "Neutral",
   avgFirstInnings: 172,
   avgTotal: 338,
-  pitchFactor: 1.0,
+  pitchFactor: 1,
   avgSixes: 16,
 };
 
-function getVenueStats(venueStr: string): VenueStats {
-  const lower = venueStr.toLowerCase();
-  for (const [key, stats] of Object.entries(VENUE_STATS)) {
-    if (lower.includes(key)) return stats;
+function getVenueStats(venueName: string): VenueStats {
+  const lowerVenue = venueName.toLowerCase();
+
+  for (const [needle, stats] of Object.entries(VENUE_STATS)) {
+    if (lowerVenue.includes(needle)) return stats;
   }
+
   return DEFAULT_VENUE;
 }
 
-function roundToHalf(n: number): number {
-  return Math.round(n * 2) / 2;
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function roundToHalf(value: number): number {
+  return Math.round(value * 2) / 2;
 }
 
 function deterministicJitter(matchId: string, seed: number, range: number): number {
   let hash = 0;
-  const str = matchId + seed.toString();
-  for (let i = 0; i < str.length; i++) {
-    hash = (hash * 31 + str.charCodeAt(i)) & 0xffffffff;
+  const source = `${matchId}:${seed}`;
+
+  for (let i = 0; i < source.length; i++) {
+    hash = (hash * 31 + source.charCodeAt(i)) & 0xffffffff;
   }
+
   const normalized = ((hash >>> 0) / 0xffffffff) - 0.5;
   return normalized * range;
 }
 
-// Generate varied odds based on line difficulty
 function generateOdds(matchId: string, seed: number): { over: number; under: number } {
-  const jitter = deterministicJitter(matchId, seed + 1000, 0.3);
-  const baseOver = 1.85 + jitter;
-  const baseUnder = 1.85 - jitter;
-  
+  const swing = deterministicJitter(matchId, seed + 1000, 0.24);
+  const over = clamp(Math.round((1.82 + swing) * 20) / 20, 1.68, 2.08);
+  const under = clamp(Math.round((1.82 - swing) * 20) / 20, 1.68, 2.08);
+
+  return { over, under };
+}
+
+function estimateInningsTotal(
+  batting: TeamStats,
+  bowling: TeamStats,
+  venue: VenueStats,
+  matchId: string,
+  seed: number
+): number {
+  const base =
+    (batting.avgInningsScore + venue.avgFirstInnings) / 2 +
+    (batting.battingStrength - bowling.bowlingStrength) * 4.5 +
+    deterministicJitter(matchId, seed, 8);
+
+  return clamp(base * venue.pitchFactor, 148, 225);
+}
+
+function makeBet(
+  matchId: string,
+  category: BetCategory,
+  description: string,
+  shortDesc: string,
+  line: number,
+  unit: string,
+  seed: number,
+  extra: Partial<BetLine> = {}
+): BetLine {
+  const odds = generateOdds(matchId, seed);
+
   return {
-    over: Math.max(1.65, Math.min(2.15, Math.round(baseOver * 20) / 20)),
-    under: Math.max(1.65, Math.min(2.15, Math.round(baseUnder * 20) / 20)),
+    id: `${matchId}-${shortDesc.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`,
+    matchId,
+    category,
+    description,
+    shortDesc,
+    line: roundToHalf(line),
+    overOdds: odds.over,
+    underOdds: odds.under,
+    unit,
+    isPlayerProp: false,
+    ...extra,
   };
 }
 
 export function generateBetsForMatch(match: IPLMatch): BetLine[] {
-  const team1Name = match.teams[0];
-  const team2Name = match.teams[1];
-  const t1 = TEAM_STATS[team1Name] || DEFAULT_TEAM_STATS;
-  const t2 = TEAM_STATS[team2Name] || DEFAULT_TEAM_STATS;
+  const [team1Name = "Team 1", team2Name = "Team 2"] = match.teams;
+  const team1 = TEAM_STATS[team1Name] || DEFAULT_TEAM_STATS;
+  const team2 = TEAM_STATS[team2Name] || DEFAULT_TEAM_STATS;
   const venue = getVenueStats(match.venue || "");
-  const mid = match.id;
+  const matchId = match.id;
 
-  const t1ExpectedScore =
-    ((t1.avgInningsScore + (10 - t2.bowlingStrength) * 3) / 2) * venue.pitchFactor;
-  const t2ExpectedScore =
-    ((t2.avgInningsScore + (10 - t1.bowlingStrength) * 3) / 2) * venue.pitchFactor;
+  const team1Expected = estimateInningsTotal(team1, team2, venue, matchId, 10);
+  const team2Expected = estimateInningsTotal(team2, team1, venue, matchId, 11);
 
-  const expectedTotal = t1ExpectedScore + t2ExpectedScore;
-  const avgPowerplay1 = t1.powerplayAvg * venue.pitchFactor;
-  const avgPowerplay2 = t2.powerplayAvg * venue.pitchFactor;
-  const avgMatchSixes = ((t1.sixesPerGame + t2.sixesPerGame) / 2) * venue.pitchFactor;
-  const avgMatchFours = ((t1.foursPerGame + t2.foursPerGame) / 2) * venue.pitchFactor;
+  const totalRunsLine = clamp(
+    team1Expected + team2Expected + deterministicJitter(matchId, 1, 10),
+    295.5,
+    419.5
+  );
+  const highestInningsLine = clamp(
+    Math.max(team1Expected, team2Expected) + deterministicJitter(matchId, 2, 6),
+    154.5,
+    239.5
+  );
+  const totalSixesLine = clamp(
+    (team1.sixesPerGame + team2.sixesPerGame) * venue.pitchFactor +
+      deterministicJitter(matchId, 3, 2.4),
+    10.5,
+    28.5
+  );
+  const totalFoursLine = clamp(
+    (team1.foursPerGame + team2.foursPerGame) * ((venue.pitchFactor + 1) / 2) +
+      deterministicJitter(matchId, 4, 3.2),
+    19.5,
+    38.5
+  );
+  const totalWicketsLine = clamp(
+    team1.avgWicketsLost + team2.avgWicketsLost + deterministicJitter(matchId, 5, 1.4),
+    8.5,
+    18.5
+  );
 
-  const bets: BetLine[] = [];
+  const team1PowerplayLine = clamp(
+    team1.powerplayAvg * venue.pitchFactor + deterministicJitter(matchId, 6, 4.5),
+    37.5,
+    74.5
+  );
+  const team2PowerplayLine = clamp(
+    team2.powerplayAvg * venue.pitchFactor + deterministicJitter(matchId, 7, 4.5),
+    37.5,
+    74.5
+  );
 
-  // MATCH PROPS - Winning margin
-  const marginOdds = generateOdds(mid, 1);
-  bets.push({
-    id: `${mid}-win-margin`,
-    matchId: mid,
-    category: "Match" as BetCategory,
-    description: `Winning Margin (Runs or Wickets)`,
-    shortDesc: "Winning Margin",
-    line: 25.5,
-    overOdds: marginOdds.over,
-    underOdds: marginOdds.under,
-    unit: "runs/wkts",
-    isPlayerProp: false,
-  });
+  const team1OpeningLine = clamp(
+    team1.powerplayAvg * 0.58 +
+      (team1.battingStrength - team2.bowlingStrength) * 1.2 +
+      deterministicJitter(matchId, 8, 5),
+    14.5,
+    60.5
+  );
+  const team2OpeningLine = clamp(
+    team2.powerplayAvg * 0.58 +
+      (team2.battingStrength - team1.bowlingStrength) * 1.2 +
+      deterministicJitter(matchId, 9, 5),
+    14.5,
+    60.5
+  );
 
-  // Highest innings score
-  const highScoreOdds = generateOdds(mid, 2);
-  const expectedHighScore = Math.max(t1ExpectedScore, t2ExpectedScore);
-  bets.push({
-    id: `${mid}-highest-innings`,
-    matchId: mid,
-    category: "Match" as BetCategory,
-    description: `Highest Innings Score of the Match`,
-    shortDesc: "Highest Innings",
-    line: roundToHalf(expectedHighScore + deterministicJitter(mid, 2, 8)),
-    overOdds: highScoreOdds.over,
-    underOdds: highScoreOdds.under,
-    unit: "runs",
-    isPlayerProp: false,
-  });
+  const team1TopBatterLine = clamp(
+    team1.avgTopBatterScore + deterministicJitter(matchId, 12, 6),
+    37.5,
+    79.5
+  );
+  const team2TopBatterLine = clamp(
+    team2.avgTopBatterScore + deterministicJitter(matchId, 13, 6),
+    37.5,
+    79.5
+  );
 
-  const sixesOdds = generateOdds(mid, 3);
-  bets.push({
-    id: `${mid}-total-sixes`,
-    matchId: mid,
-    category: "Match" as BetCategory,
-    description: `Total Sixes Hit in the Match (Both Teams)`,
-    shortDesc: "Match Total Sixes",
-    line: roundToHalf(avgMatchSixes * 2 + deterministicJitter(mid, 3, 3)),
-    overOdds: sixesOdds.over,
-    underOdds: sixesOdds.under,
-    unit: "sixes",
-    isPlayerProp: false,
-  });
+  const team1WicketsLine = clamp(
+    team2.avgWicketsLost + (team1.bowlingStrength - team2.battingStrength) * 0.35 +
+      deterministicJitter(matchId, 14, 0.9),
+    3.5,
+    9.5
+  );
+  const team2WicketsLine = clamp(
+    team1.avgWicketsLost + (team2.bowlingStrength - team1.battingStrength) * 0.35 +
+      deterministicJitter(matchId, 15, 0.9),
+    3.5,
+    9.5
+  );
 
-  const foursOdds = generateOdds(mid, 4);
-  bets.push({
-    id: `${mid}-total-fours`,
-    matchId: mid,
-    category: "Match" as BetCategory,
-    description: `Total Fours Hit in the Match (Both Teams)`,
-    shortDesc: "Match Total Fours",
-    line: roundToHalf(avgMatchFours * 2 + deterministicJitter(mid, 4, 3)),
-    overOdds: foursOdds.over,
-    underOdds: foursOdds.under,
-    unit: "fours",
-    isPlayerProp: false,
-  });
+  const totalExtrasLine = clamp(
+    team1.avgExtrasConceded + team2.avgExtrasConceded + deterministicJitter(matchId, 16, 3),
+    12.5,
+    31.5
+  );
 
-  const wicketsOdds = generateOdds(mid, 5);
-  bets.push({
-    id: `${mid}-total-wkts`,
-    matchId: mid,
-    category: "Match" as BetCategory,
-    description: `Total Wickets Taken (Both Teams Combined)`,
-    shortDesc: "Match Total Wickets",
-    line: roundToHalf(
-      ((t1.avgWicketsGiven + t2.avgWicketsGiven) / 2) * 2 + deterministicJitter(mid, 5, 1.5)
+  return [
+    makeBet(
+      matchId,
+      "Match",
+      "Total Runs in the Match",
+      "Match Total Runs",
+      totalRunsLine,
+      "runs",
+      1
     ),
-    overOdds: wicketsOdds.over,
-    underOdds: wicketsOdds.under,
-    unit: "wickets",
-    isPlayerProp: false,
-  });
-
-  // INNINGS PROPS
-  const innings1Odds = generateOdds(mid, 6);
-  bets.push({
-    id: `${mid}-1st-innings`,
-    matchId: mid,
-    category: "Innings" as BetCategory,
-    description: `${team1Name} First Innings Total`,
-    shortDesc: `${team1Name} 1st Innings`,
-    line: roundToHalf(t1ExpectedScore + deterministicJitter(mid, 6, 8)),
-    overOdds: innings1Odds.over,
-    underOdds: innings1Odds.under,
-    unit: "runs",
-    isPlayerProp: false,
-    teamName: team1Name,
-  });
-
-  const innings2Odds = generateOdds(mid, 7);
-  bets.push({
-    id: `${mid}-2nd-innings`,
-    matchId: mid,
-    category: "Innings" as BetCategory,
-    description: `${team2Name} Second Innings Total`,
-    shortDesc: `${team2Name} 2nd Innings`,
-    line: roundToHalf(t2ExpectedScore + deterministicJitter(mid, 7, 8)),
-    overOdds: innings2Odds.over,
-    underOdds: innings2Odds.under,
-    unit: "runs",
-    isPlayerProp: false,
-    teamName: team2Name,
-  });
-
-  // POWERPLAY PROPS
-  const pp1Odds = generateOdds(mid, 8);
-  bets.push({
-    id: `${mid}-pp1`,
-    matchId: mid,
-    category: "Innings" as BetCategory,
-    description: `${team1Name} Powerplay Score (Overs 1-6)`,
-    shortDesc: `${team1Name} Powerplay`,
-    line: roundToHalf(avgPowerplay1 + deterministicJitter(mid, 8, 5)),
-    overOdds: pp1Odds.over,
-    underOdds: pp1Odds.under,
-    unit: "runs",
-    isPlayerProp: false,
-    teamName: team1Name,
-  });
-
-  const pp2Odds = generateOdds(mid, 9);
-  bets.push({
-    id: `${mid}-pp2`,
-    matchId: mid,
-    category: "Innings" as BetCategory,
-    description: `${team2Name} Powerplay Score (Overs 1-6)`,
-    shortDesc: `${team2Name} Powerplay`,
-    line: roundToHalf(avgPowerplay2 + deterministicJitter(mid, 9, 5)),
-    overOdds: pp2Odds.over,
-    underOdds: pp2Odds.under,
-    unit: "runs",
-    isPlayerProp: false,
-    teamName: team2Name,
-  });
-
-  // OPENING PARTNERSHIP
-  const openingLine1 = roundToHalf(t1.powerplayAvg * 0.6 + deterministicJitter(mid, 10, 6));
-  const openingLine2 = roundToHalf(t2.powerplayAvg * 0.6 + deterministicJitter(mid, 11, 6));
-
-  const open1Odds = generateOdds(mid, 10);
-  bets.push({
-    id: `${mid}-open1`,
-    matchId: mid,
-    category: "Opening" as BetCategory,
-    description: `${team1Name} Opening Partnership Runs`,
-    shortDesc: `${team1Name} Opening Stand`,
-    line: openingLine1,
-    overOdds: open1Odds.over,
-    underOdds: open1Odds.under,
-    unit: "runs",
-    isPlayerProp: false,
-    teamName: team1Name,
-  });
-
-  const open2Odds = generateOdds(mid, 11);
-  bets.push({
-    id: `${mid}-open2`,
-    matchId: mid,
-    category: "Opening" as BetCategory,
-    description: `${team2Name} Opening Partnership Runs`,
-    shortDesc: `${team2Name} Opening Stand`,
-    line: openingLine2,
-    overOdds: open2Odds.over,
-    underOdds: open2Odds.under,
-    unit: "runs",
-    isPlayerProp: false,
-    teamName: team2Name,
-  });
-
-  // PLAYER BATTING PROPS
-  const t1Batsmen = t1.topBatsmen.slice(0, 3);
-  const t2Batsmen = t2.topBatsmen.slice(0, 3);
-
-  [
-    { player: t1Batsmen[0], line: 36.5, seed: 11 },
-    { player: t1Batsmen[1], line: 30.5, seed: 12 },
-    { player: t2Batsmen[0], line: 36.5, seed: 13 },
-    { player: t2Batsmen[1], line: 30.5, seed: 14 },
-  ].forEach(({ player, line, seed }) => {
-    const jitterLine = roundToHalf(line + deterministicJitter(mid, seed, 7));
-    const playerOdds = generateOdds(mid, seed);
-    bets.push({
-      id: `${mid}-bat-${player.toLowerCase().replace(/\s/g, "-")}`,
-      matchId: mid,
-      category: "Batting" as BetCategory,
-      description: `${player} Total Runs`,
-      shortDesc: `${player} Runs`,
-      line: Math.max(jitterLine, 18.5),
-      overOdds: playerOdds.over,
-      underOdds: playerOdds.under,
-      unit: "runs",
-      isPlayerProp: true,
-      playerName: player,
-    });
-  });
-
-  // 50+ milestone props
-  [t1Batsmen[0], t2Batsmen[0]].forEach((player) => {
-    bets.push({
-      id: `${mid}-50plus-${player.toLowerCase().replace(/\s/g, "-")}`,
-      matchId: mid,
-      category: "Batting" as BetCategory,
-      description: `${player} to Score 50+ Runs`,
-      shortDesc: `${player} 50+`,
-      line: 49.5,
-      overOdds: 2.2,
-      underOdds: 1.68,
-      unit: "runs",
-      isPlayerProp: true,
-      playerName: player,
-    });
-  });
-
-  // BOWLING PROPS
-  const t1Bowler = t1.topBowlers[0];
-  const t2Bowler = t2.topBowlers[0];
-
-  [
-    { player: t1Bowler, seed: 20, teamName: team1Name },
-    { player: t2Bowler, seed: 21, teamName: team2Name },
-  ].forEach(({ player, seed, teamName: tName }) => {
-    const bowlerOdds = generateOdds(mid, seed);
-    bets.push({
-      id: `${mid}-bowl-${player.toLowerCase().replace(/\s/g, "-")}`,
-      matchId: mid,
-      category: "Bowling" as BetCategory,
-      description: `${player} Total Wickets`,
-      shortDesc: `${player} Wickets`,
-      line: roundToHalf(1.5 + deterministicJitter(mid, seed, 0.6)),
-      overOdds: bowlerOdds.over,
-      underOdds: bowlerOdds.under,
-      unit: "wickets",
-      isPlayerProp: true,
-      playerName: player,
-      teamName: tName,
-    });
-  });
-
-  [t1Bowler, t2Bowler].forEach((player) => {
-    bets.push({
-      id: `${mid}-2wkts-${player.toLowerCase().replace(/\s/g, "-")}`,
-      matchId: mid,
-      category: "Bowling" as BetCategory,
-      description: `${player} to Take 2+ Wickets`,
-      shortDesc: `${player} 2+ Wkts`,
-      line: 1.5,
-      overOdds: 2.1,
-      underOdds: 1.78,
-      unit: "wickets",
-      isPlayerProp: true,
-      playerName: player,
-    });
-  });
-
-  // EXTRAS
-  const extrasOdds = generateOdds(mid, 30);
-  bets.push({
-    id: `${mid}-extras-t1`,
-    matchId: mid,
-    category: "Extras" as BetCategory,
-    description: `${team1Name} Extras Conceded`,
-    shortDesc: `${team1Name} Extras`,
-    line: roundToHalf(11.5 + deterministicJitter(mid, 30, 2.5)),
-    overOdds: extrasOdds.over,
-    underOdds: extrasOdds.under,
-    unit: "runs",
-    isPlayerProp: false,
-    teamName: team1Name,
-  });
-
-  const deathOdds = generateOdds(mid, 31);
-  bets.push({
-    id: `${mid}-deathover-sixes`,
-    matchId: mid,
-    category: "Extras" as BetCategory,
-    description: `Total Sixes in Death Overs (Overs 16-20, Both Teams)`,
-    shortDesc: "Death Over Sixes",
-    line: roundToHalf(6.5 + deterministicJitter(mid, 31, 2)),
-    overOdds: deathOdds.over,
-    underOdds: deathOdds.under,
-    unit: "sixes",
-    isPlayerProp: false,
-  });
-
-  return bets;
+    makeBet(
+      matchId,
+      "Match",
+      "Highest Team Score in the Match",
+      "Highest Innings",
+      highestInningsLine,
+      "runs",
+      2
+    ),
+    makeBet(
+      matchId,
+      "Match",
+      "Total Sixes Hit in the Match",
+      "Match Total Sixes",
+      totalSixesLine,
+      "sixes",
+      3
+    ),
+    makeBet(
+      matchId,
+      "Match",
+      "Total Fours Hit in the Match",
+      "Match Total Fours",
+      totalFoursLine,
+      "fours",
+      4
+    ),
+    makeBet(
+      matchId,
+      "Match",
+      "Total Wickets Lost in the Match",
+      "Match Total Wickets",
+      totalWicketsLine,
+      "wickets",
+      5
+    ),
+    makeBet(
+      matchId,
+      "Innings",
+      `${team1Name} Total Runs`,
+      `${team1Name} Total`,
+      team1Expected + deterministicJitter(matchId, 20, 5),
+      "runs",
+      6,
+      { teamName: team1Name }
+    ),
+    makeBet(
+      matchId,
+      "Innings",
+      `${team2Name} Total Runs`,
+      `${team2Name} Total`,
+      team2Expected + deterministicJitter(matchId, 21, 5),
+      "runs",
+      7,
+      { teamName: team2Name }
+    ),
+    makeBet(
+      matchId,
+      "Innings",
+      `${team1Name} Powerplay Runs (Overs 1-6)`,
+      `${team1Name} Powerplay`,
+      team1PowerplayLine,
+      "runs",
+      8,
+      { teamName: team1Name }
+    ),
+    makeBet(
+      matchId,
+      "Innings",
+      `${team2Name} Powerplay Runs (Overs 1-6)`,
+      `${team2Name} Powerplay`,
+      team2PowerplayLine,
+      "runs",
+      9,
+      { teamName: team2Name }
+    ),
+    makeBet(
+      matchId,
+      "Opening",
+      `${team1Name} Opening Partnership`,
+      `${team1Name} Opening Stand`,
+      team1OpeningLine,
+      "runs",
+      10,
+      { teamName: team1Name }
+    ),
+    makeBet(
+      matchId,
+      "Opening",
+      `${team2Name} Opening Partnership`,
+      `${team2Name} Opening Stand`,
+      team2OpeningLine,
+      "runs",
+      11,
+      { teamName: team2Name }
+    ),
+    makeBet(
+      matchId,
+      "Batting",
+      `${team1Name} Top Batter Score`,
+      `${team1Name} Top Score`,
+      team1TopBatterLine,
+      "runs",
+      12,
+      { teamName: team1Name }
+    ),
+    makeBet(
+      matchId,
+      "Batting",
+      `${team2Name} Top Batter Score`,
+      `${team2Name} Top Score`,
+      team2TopBatterLine,
+      "runs",
+      13,
+      { teamName: team2Name }
+    ),
+    makeBet(
+      matchId,
+      "Bowling",
+      `${team1Name} Wickets Taken`,
+      `${team1Name} Wickets`,
+      team1WicketsLine,
+      "wickets",
+      14,
+      { teamName: team1Name }
+    ),
+    makeBet(
+      matchId,
+      "Bowling",
+      `${team2Name} Wickets Taken`,
+      `${team2Name} Wickets`,
+      team2WicketsLine,
+      "wickets",
+      15,
+      { teamName: team2Name }
+    ),
+    makeBet(
+      matchId,
+      "Extras",
+      "Total Extras in the Match",
+      "Match Extras",
+      totalExtrasLine,
+      "runs",
+      16
+    ),
+  ];
 }

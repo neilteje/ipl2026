@@ -28,6 +28,7 @@ interface ParlayPanelProps {
   bets: BetLine[];
   matchId: string;
   currentUser: string | null;
+  lockedReason?: string | null;
   onRemoveLeg: (betId: string) => void;
   onClearAll: () => void;
   onSubmit: (userName: string, betAmount: number) => Promise<void>;
@@ -38,12 +39,14 @@ export function ParlayPanel({
   bets,
   matchId,
   currentUser,
+  lockedReason,
   onRemoveLeg,
   onClearAll,
   onSubmit,
 }: ParlayPanelProps) {
   const [betAmount, setBetAmount] = useState<number>(10);
   const [loading, setLoading] = useState(false);
+  const locked = !!lockedReason;
 
   const getBetForLeg = (leg: ParlayLeg) => bets.find((b) => b.id === leg.betId);
 
@@ -51,7 +54,7 @@ export function ParlayPanel({
   const potentialPayout = calculateParlayPayout(betAmount, legs.length);
 
   const handleSubmit = async () => {
-    if (!currentUser || legs.length === 0 || betAmount <= 0) return;
+    if (locked || !currentUser || legs.length === 0 || betAmount <= 0) return;
     setLoading(true);
     try {
       await onSubmit(currentUser, betAmount);
@@ -68,7 +71,7 @@ export function ParlayPanel({
         </div>
         <h3 className="font-semibold text-foreground text-sm mb-1">Build Your Parlay</h3>
         <p className="text-xs text-muted-foreground">
-          Click OVER or UNDER on any bet to start
+          {lockedReason || "Click OVER or UNDER on any bet to start"}
         </p>
         <div className="mt-4 grid grid-cols-3 gap-2 w-full max-w-xs">
           {[2, 3, 4].map((n) => (
@@ -87,6 +90,12 @@ export function ParlayPanel({
 
   return (
     <div className="flex flex-col h-full">
+      {lockedReason && (
+        <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
+          {lockedReason}
+        </div>
+      )}
+
       {/* Legs list */}
       <ScrollArea className="flex-1 max-h-[300px]">
         <div className="space-y-2 p-1">
@@ -171,11 +180,13 @@ export function ParlayPanel({
               <button
                 key={amt}
                 onClick={() => setBetAmount(amt)}
+                disabled={locked}
                 className={cn(
                   "flex-1 h-8 rounded-md border text-xs font-medium transition-colors",
                   betAmount === amt
                     ? "bg-primary text-primary-foreground border-primary/40 shadow-raised-sm"
-                    : "bg-secondary/40 border-white/[0.08] hover:bg-accent shadow-raised-sm"
+                    : "bg-secondary/40 border-white/[0.08] hover:bg-accent shadow-raised-sm",
+                  locked && "cursor-not-allowed opacity-60"
                 )}
               >
                 ${amt}
@@ -187,6 +198,7 @@ export function ParlayPanel({
             min={1}
             step={1}
             value={betAmount}
+            disabled={locked}
             onChange={(e) => setBetAmount(Number(e.target.value))}
             className="h-9 text-sm"
             placeholder="Custom amount"
@@ -200,7 +212,7 @@ export function ParlayPanel({
           <Button
             size="sm"
             onClick={handleSubmit}
-            disabled={loading || !currentUser || legs.length === 0 || betAmount <= 0}
+            disabled={locked || loading || !currentUser || legs.length === 0 || betAmount <= 0}
             className="flex-1"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}

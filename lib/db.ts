@@ -1,28 +1,72 @@
 /**
  * Database abstraction layer.
  * Uses Vercel KV (Redis) in production.
- * Falls back to in-memory store in development when KV is not configured.
+ * Falls back to a shared JSON file when KV is not configured.
  */
 
+import { promises as fs } from "fs";
+import path from "path";
 import { BetLine, Parlay, MatchBettingData } from "@/types";
 import { ChatMessage } from "@/components/ChatPanel";
+import { getIPLMatches } from "@/lib/cricket-api";
 
-// In-memory fallback store (resets on server restart)
-const memoryStore: Record<string, string> = {};
+const LOCAL_STORE_PATH = process.env.LOCAL_STORE_PATH || "/tmp/ipl-parlay-store.json";
+let localWriteQueue = Promise.resolve();
 
-// Clear all in-memory data (for development)
-export function clearMemoryStore(): void {
-  Object.keys(memoryStore).forEach(key => delete memoryStore[key]);
-  console.log("🧹 Memory store cleared");
+async function readLocalStore(): Promise<Record<string, string>> {
+  try {
+    const raw = await fs.readFile(LOCAL_STORE_PATH, "utf8");
+    return JSON.parse(raw) as Record<string, string>;
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    if (code === "ENOENT") return {};
+    console.error("Local store read error:", err);
+    return {};
+  }
+}
+
+async function writeLocalStore(store: Record<string, string>): Promise<void> {
+  try {
+    await fs.mkdir(path.dirname(LOCAL_STORE_PATH), { recursive: true });
+    await fs.writeFile(LOCAL_STORE_PATH, JSON.stringify(store), "utf8");
+  } catch (err) {
+    console.error("Local store write error:", err);
+  }
+}
+
+async function setLocalValue(key: string, value: unknown): Promise<void> {
+  localWriteQueue = localWriteQueue.then(async () => {
+    const store = await readLocalStore();
+    store[key] = JSON.stringify(value);
+    await writeLocalStore(store);
+  });
+  return localWriteQueue;
+}
+
+async function deleteLocalValue(key: string): Promise<void> {
+  localWriteQueue = localWriteQueue.then(async () => {
+    const store = await readLocalStore();
+    delete store[key];
+    await writeLocalStore(store);
+  });
+  return localWriteQueue;
+}
+
+// Clear all local fallback data (for development)
+export async function clearMemoryStore(): Promise<void> {
+  await writeLocalStore({});
+  console.log("🧹 Local fallback store cleared");
 }
 
 // Clear only bet-related keys
-export function clearAllBets(): void {
-  Object.keys(memoryStore).forEach(key => {
-    if (key.startsWith('bets:')) {
-      delete memoryStore[key];
+export async function clearAllBets(): Promise<void> {
+  const store = await readLocalStore();
+  Object.keys(store).forEach((key) => {
+    if (key.startsWith("bets:")) {
+      delete store[key];
     }
   });
+  await writeLocalStore(store);
   console.log("🧹 All bet caches cleared");
 }
 
@@ -38,7 +82,8 @@ async function kvGet<T>(key: string): Promise<T | null> {
   try {
     const kv = await getKV();
     if (kv) return await kv.get<T>(key);
-    const val = memoryStore[key];
+    const store = await readLocalStore();
+    const val = store[key];
     return val ? (JSON.parse(val) as T) : null;
   } catch {
     return null;
@@ -56,15 +101,25 @@ async function kvSet(key: string, value: unknown, ttlSeconds?: number): Promise<
       }
       return;
     }
-    memoryStore[key] = JSON.stringify(value);
+    await setLocalValue(key, value);
   } catch (err) {
     console.error("KV set error:", err);
   }
 }
 
+async function kvDelete(key: string): Promise<void> {
+  const kv = await getKV();
+  if (kv) {
+    await kv.del(key);
+    return;
+  }
+  await deleteLocalValue(key);
+}
+
 // ─── BET LINES ─────────────────────────────────────────────────────────────
 
-const BETS_KEY = (matchId: string) => `bets:${matchId}`;
+const BETS_CACHE_VERSION = "v2";
+const BETS_KEY = (matchId: string) => `bets:${BETS_CACHE_VERSION}:${matchId}`;
 
 export async function saveBets(matchId: string, bets: BetLine[]): Promise<void> {
   await kvSet(BETS_KEY(matchId), bets, 60 * 60 * 24 * 7);
@@ -106,6 +161,23 @@ export async function getAllMatchIds(): Promise<string[]> {
   return (await kvGet<string[]>(MATCH_REGISTRY_KEY)) || [];
 }
 
+function isLegacyMockMatchId(matchId: string): boolean {
+  return /^ipl26-\d+$/i.test(matchId);
+}
+
+async function getValidRegisteredMatchIds(): Promise<string[]> {
+  const matchIds = (await getAllMatchIds()).filter((matchId) => !isLegacyMockMatchId(matchId));
+  if (!matchIds.length) return [];
+
+  try {
+    const liveMatchIds = new Set((await getIPLMatches()).map((match) => match.id));
+    if (!liveMatchIds.size) return matchIds;
+    return matchIds.filter((matchId) => liveMatchIds.has(matchId));
+  } catch {
+    return matchIds;
+  }
+}
+
 // ─── PARLAYS ───────────────────────────────────────────────────────────────
 
 const PARLAY_KEY = (parlayId: string) => `parlay:${parlayId}`;
@@ -133,12 +205,7 @@ export async function deleteParlay(parlayId: string, requestingUser: string): Pr
   if (parlay.userName !== requestingUser) return { ok: false, error: "Not your parlay" };
 
   // Remove the parlay record
-  const kv = await getKV();
-  if (kv) {
-    await kv.del(PARLAY_KEY(parlayId));
-  } else {
-    delete memoryStore[PARLAY_KEY(parlayId)];
-  }
+  await kvDelete(PARLAY_KEY(parlayId));
 
   // Remove from the match parlay list
   const existing = (await kvGet<string[]>(MATCH_PARLAYS_KEY(parlay.matchId))) || [];
@@ -208,7 +275,7 @@ export interface PlayerStats {
 }
 
 export async function getLeaderboardStats(): Promise<PlayerStats[]> {
-  const matchIds = await getAllMatchIds();
+  const matchIds = await getValidRegisteredMatchIds();
   if (!matchIds.length) return [];
 
   const allParlaysArrays = await Promise.all(matchIds.map(getParlaysForMatch));
@@ -275,7 +342,7 @@ const WEEKLY_SETTLEMENT_KEY = (weekStart: string) => `settlement:${weekStart}`;
 
 export async function calculateWeeklySettlement(weekStart: string): Promise<any> {
   const { start, end } = getWeekRange(weekStart);
-  const matchIds = await getAllMatchIds();
+  const matchIds = await getValidRegisteredMatchIds();
   
   const allParlaysArrays = await Promise.all(matchIds.map(getParlaysForMatch));
   const allParlays = allParlaysArrays.flat();

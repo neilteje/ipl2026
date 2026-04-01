@@ -1,15 +1,9 @@
 import type { Metadata, Viewport } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+import type { CSSProperties } from "react";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { UserProvider } from "@/lib/user-context";
 import { UserNameGate } from "@/components/UserNameGate";
-
-const sans = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-sans",
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   title: "IPL Parlay 2026 | Friends League",
@@ -27,8 +21,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`dark ${sans.variable}`}>
-      <body className={`min-h-screen font-sans antialiased ${sans.className}`}>
+    <html
+      lang="en"
+      className="dark"
+      style={
+        {
+          "--font-sans":
+            '"Avenir Next", "Segoe UI", "Helvetica Neue", ui-sans-serif, system-ui, sans-serif',
+        } as CSSProperties
+      }
+    >
+      <body className="min-h-screen font-sans antialiased">
         <UserProvider>
           <div className="min-h-screen app-backdrop">
             <div className="relative z-10">

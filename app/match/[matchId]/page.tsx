@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { BetLine, Parlay, ParlayLeg, BetDirection, BetCategory } from "@/types";
+import { BetLine, Parlay, ParlayLeg, BetDirection, BetCategory, IPLMatch } from "@/types";
 import { BetCard } from "@/components/BetCard";
 import { ParlayPanel } from "@/components/ParlayPanel";
 import { Leaderboard } from "@/components/Leaderboard";
@@ -19,8 +19,11 @@ import {
   cn,
   getParlayMultiplier,
   formatCurrency,
+  getDisplayMatchName,
   getTeamShortName,
   getTeamColor,
+  isBettingOpen,
+  isMatchCompleted,
 } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -50,7 +53,8 @@ export default function MatchPage() {
   const [showParlay, setShowParlay] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("bets");
   const [activeCategory, setActiveCategory] = useState<string>("All");
-  const [matchName, setMatchName] = useState<string>("");
+  const [match, setMatch] = useState<IPLMatch | null>(null);
+  const [bettingMessage, setBettingMessage] = useState<string | null>(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -64,11 +68,15 @@ export default function MatchPage() {
       const parlaysData = await parlaysRes.json();
       const matchesData = await matchesRes.json();
 
-      if (betsData.bets) setBets(betsData.bets);
+      setBets(Array.isArray(betsData.bets) ? betsData.bets : []);
       if (parlaysData.parlays) setParlays(parlaysData.parlays);
+      setBettingMessage(betsData.bettingClosed ? betsData.error || "Betting is closed for this match." : null);
 
-      const match = matchesData.matches?.find((m: { id: string; name: string }) => m.id === matchId);
-      if (match) setMatchName(match.name);
+      const resolvedMatch =
+        betsData.match ||
+        matchesData.matches?.find((m: IPLMatch) => m.id === matchId) ||
+        null;
+      setMatch(resolvedMatch);
     } catch {
       toast({ title: "Error", description: "Failed to load data", variant: "destructive" });
     } finally {
@@ -88,6 +96,7 @@ export default function MatchPage() {
   }, [matchId, fetchData]);
 
   const handleSelectLeg = (betId: string, direction: BetDirection, odds: number) => {
+    if (match && !isBettingOpen(match)) return;
     setParlayLegs((prev) => {
       const exists = prev.find((l) => l.betId === betId);
       if (exists) return prev.map((l) => l.betId === betId ? { ...l, direction, odds } : l);
@@ -101,6 +110,10 @@ export default function MatchPage() {
   };
 
   const handleSubmitParlay = async (name: string, betAmount: number) => {
+    if (match && !isBettingOpen(match)) {
+      throw new Error("Betting is closed for this match");
+    }
+
     const res = await fetch("/api/parlay", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -143,12 +156,17 @@ export default function MatchPage() {
     toast({ title: "Parlay removed" });
   };
 
-  // Derive teams from match name
-  const teams = matchName.split(" vs ");
-  const t1 = teams[0] || "Team 1";
-  const t2 = teams[1] || "Team 2";
+  const t1 = match?.teams?.[0] || "Team 1";
+  const t2 = match?.teams?.[1] || "Team 2";
   const t1Short = getTeamShortName(t1);
   const t2Short = getTeamShortName(t2);
+  const matchTitle = match ? getDisplayMatchName(match) : "";
+  const bettingLocked = match ? !isBettingOpen(match) : false;
+  const lockedReason = bettingLocked
+    ? match && (match.matchEnded || isMatchCompleted(match))
+      ? "Betting is closed because this match is already finished."
+      : "Betting is locked because the match has already started."
+    : null;
 
   const filteredBets =
     activeCategory === "All" ? bets : bets.filter((b) => b.category === activeCategory);
@@ -175,13 +193,13 @@ export default function MatchPage() {
               className="h-8 w-auto object-contain hidden sm:block"
               onError={(e) => { e.currentTarget.style.display = 'none'; }}
             />
-            {!loading && matchName && (
+            {!loading && matchTitle && (
               <div className="flex items-center gap-2 min-w-0">
                 <TeamPill shortName={t1Short} />
                 <span className="text-xs text-muted-foreground">vs</span>
                 <TeamPill shortName={t2Short} />
                 <span className="hidden sm:block text-sm font-medium truncate max-w-[200px]">
-                  {matchName}
+                  {matchTitle}
                 </span>
               </div>
             )}
@@ -249,6 +267,16 @@ export default function MatchPage() {
 
               {/* ── BET LINES ── */}
               <TabsContent value="bets">
+                {lockedReason && (
+                  <div className="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                    {lockedReason}
+                  </div>
+                )}
+                {bettingMessage && !lockedReason && (
+                  <div className="mb-4 rounded-xl border border-white/[0.08] bg-card/80 px-4 py-3 text-sm text-muted-foreground">
+                    {bettingMessage}
+                  </div>
+                )}
                 <div className="flex gap-1.5 mb-4 flex-wrap">
                   <CategoryPill
                     label={`All (${bets.length})`}
@@ -280,8 +308,14 @@ export default function MatchPage() {
                         selectedLeg={parlayLegs.find((l) => l.betId === bet.id)}
                         onSelect={handleSelectLeg}
                         onDeselect={handleDeselectLeg}
+                        disabled={bettingLocked}
                       />
                     ))}
+                  </div>
+                )}
+                {!loading && filteredBets.length === 0 && (
+                  <div className="rounded-xl border border-white/[0.06] bg-card/70 px-4 py-6 text-sm text-muted-foreground">
+                    {bettingMessage || "No bet lines available for this match."}
                   </div>
                 )}
               </TabsContent>
@@ -326,6 +360,7 @@ export default function MatchPage() {
                 bets={bets}
                 matchId={matchId}
                 currentUser={userName}
+                lockedReason={lockedReason}
                 onRemoveLeg={handleDeselectLeg}
                 onClearAll={() => setParlayLegs([])}
                 onSubmit={handleSubmitParlay}
@@ -379,6 +414,7 @@ export default function MatchPage() {
                   bets={bets}
                   matchId={matchId}
                   currentUser={userName}
+                  lockedReason={lockedReason}
                   onRemoveLeg={handleDeselectLeg}
                   onClearAll={() => { setParlayLegs([]); setShowParlay(false); }}
                   onSubmit={handleSubmitParlay}

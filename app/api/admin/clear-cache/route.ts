@@ -3,7 +3,7 @@ import { clearAllBets } from "@/lib/db";
 
 export async function POST() {
   try {
-    clearAllBets();
+    await clearAllBets();
     return NextResponse.json({ 
       success: true, 
       message: "All bet caches cleared. New bets will be regenerated on next request." 

@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getBets, saveBets } from "@/lib/db";
-import { generateBetsForMatch } from "@/lib/bet-generator";
-import { getMatchById } from "@/lib/cricket-api";
-import { getMockMatches } from "@/lib/cricket-api";
+import { getOrCreateMatchBets } from "@/lib/betting-service";
 
 export async function GET(
   req: NextRequest,
@@ -11,38 +8,28 @@ export async function GET(
   const { matchId } = params;
 
   try {
-    // Check if force regeneration is requested
     const url = new URL(req.url);
     const forceRegenerate = url.searchParams.get("regenerate") === "true";
+    const payload = await getOrCreateMatchBets(matchId, { forceRegenerate });
 
-    // Try to get cached bets first (unless force regenerate)
-    let bets = forceRegenerate ? null : await getBets(matchId);
-
-    if (!bets) {
-      // Fetch match info to generate bets
-      const allMocks = getMockMatches();
-      let match = allMocks.find((m) => m.id === matchId);
-      
-      // Only try CricAPI if not found in mocks AND we have an API key
-      if (!match && process.env.CRICAPI_KEY) {
-        try {
-          const apiMatch = await getMatchById(matchId);
-          if (apiMatch) match = apiMatch;
-        } catch (apiErr) {
-          console.warn("CricAPI fetch failed, match not in mocks:", matchId);
-        }
-      }
-
-      if (!match) {
-        return NextResponse.json({ error: "Match not found" }, { status: 404 });
-      }
-
-      // Generate and cache bets
-      bets = generateBetsForMatch(match);
-      await saveBets(matchId, bets);
+    if (!payload) {
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ bets });
+    if (payload.bettingClosed && payload.bets.length === 0) {
+      return NextResponse.json({
+        bets: [],
+        match: payload.match,
+        bettingClosed: true,
+        error: "Betting is closed because this match has already started.",
+      });
+    }
+
+    return NextResponse.json({
+      bets: payload.bets,
+      match: payload.match,
+      bettingClosed: payload.bettingClosed,
+    });
   } catch (err) {
     console.error("Bets API error:", err);
     return NextResponse.json({ error: "Failed to fetch bets" }, { status: 500 });
@@ -53,37 +40,23 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: { matchId: string } }
 ) {
-  // Regenerate bets (reset) - force regeneration by not using cache
   const { matchId } = params;
 
   try {
-    console.log(`🔄 Regenerating bets for match: ${matchId}`);
-    
-    // Try mocks first
-    const allMocks = getMockMatches();
-    let match = allMocks.find((m) => m.id === matchId);
-    
-    // Only try CricAPI if not found in mocks AND we have an API key
-    if (!match && process.env.CRICAPI_KEY) {
-      try {
-        const apiMatch = await getMatchById(matchId);
-        if (apiMatch) match = apiMatch;
-      } catch (apiErr) {
-        console.warn("CricAPI fetch failed for delete:", matchId);
-      }
-    }
+    const payload = await getOrCreateMatchBets(matchId, { forceRegenerate: true });
 
-    if (!match) {
+    if (!payload) {
       return NextResponse.json({ error: "Match not found" }, { status: 404 });
     }
 
-    // Generate fresh bets with current logic
-    const bets = generateBetsForMatch(match);
-    console.log(`✅ Generated ${bets.length} bets for ${matchId}`);
-    
-    // Save to cache
-    await saveBets(matchId, bets);
-    return NextResponse.json({ bets, regenerated: true });
+    if (payload.bettingClosed) {
+      return NextResponse.json(
+        { error: "Cannot regenerate bets after the match has started", match: payload.match },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json({ bets: payload.bets, match: payload.match, regenerated: true });
   } catch (err) {
     console.error("Regenerate bets error:", err);
     return NextResponse.json({ error: "Failed to regenerate bets" }, { status: 500 });

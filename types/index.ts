@@ -12,6 +12,12 @@ export interface IPLMatch {
   tossWinner?: string;
   tossChoice?: string;
   matchWinner?: string;
+  seriesId?: string;
+  fantasyEnabled?: boolean;
+  bbbEnabled?: boolean;
+  hasSquad?: boolean;
+  matchStarted?: boolean;
+  matchEnded?: boolean;
 }
 
 export interface TeamInfo {
@@ -98,14 +104,15 @@ export type TeamKey =
 
 export interface TeamStats {
   battingStrength: number;   // 1-10 scale
+  bowlingStrength: number;   // 1-10 scale
   powerplayAvg: number;      // avg runs in first 6 overs
   avgInningsScore: number;   // historical avg T20 score
   sixesPerGame: number;
   foursPerGame: number;
-  topBatsmen: string[];
-  topBowlers: string[];
-  bowlingStrength: number;   // 1-10 scale
-  avgWicketsGiven: number;
+  avgWicketsLost: number;
+  avgTopBatterScore: number;
+  avgLeadBowlerWickets: number;
+  avgExtrasConceded: number;
 }
 
 export interface VenueStats {

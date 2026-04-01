@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { saveParlay, getParlaysForMatch } from "@/lib/db";
 import { Parlay, ParlayLeg } from "@/types";
 import { calculateParlayPayout, generateId } from "@/lib/utils";
+import { getOrCreateMatchBets } from "@/lib/betting-service";
 
 export async function POST(req: NextRequest) {
   try {
@@ -28,6 +29,33 @@ export async function POST(req: NextRequest) {
 
     if (legs.length > 10) {
       return NextResponse.json({ error: "Max 10 legs per parlay" }, { status: 400 });
+    }
+
+    const validDirections = new Set(["over", "under", "yes", "no"]);
+    if (legs.some((leg) => !validDirections.has(leg.direction))) {
+      return NextResponse.json({ error: "Invalid leg direction" }, { status: 400 });
+    }
+
+    const uniqueLegIds = new Set(legs.map((leg) => leg.betId));
+    if (uniqueLegIds.size !== legs.length) {
+      return NextResponse.json({ error: "Duplicate bet legs are not allowed" }, { status: 400 });
+    }
+
+    const bettingPayload = await getOrCreateMatchBets(matchId);
+    if (!bettingPayload) {
+      return NextResponse.json({ error: "Match not found" }, { status: 404 });
+    }
+
+    if (bettingPayload.bettingClosed) {
+      return NextResponse.json(
+        { error: "Betting is closed for this match" },
+        { status: 409 }
+      );
+    }
+
+    const validBetIds = new Set(bettingPayload.bets.map((bet) => bet.id));
+    if (legs.some((leg) => !validBetIds.has(leg.betId))) {
+      return NextResponse.json({ error: "One or more legs are invalid for this match" }, { status: 400 });
     }
 
     const potentialPayout = calculateParlayPayout(betAmount, legs.length);

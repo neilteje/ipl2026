@@ -10,6 +10,7 @@ import {
   getTeamColor,
   cn,
   isMatchCompleted,
+  isBettingOpen,
 } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -231,12 +232,10 @@ export default function HomePage() {
               <div className="surface-raised text-center py-16 px-4 max-w-md mx-auto">
                 <p className="text-muted-foreground">No matches loaded.</p>
                 <p className="text-xs text-muted-foreground/80 mt-2 leading-relaxed">
-                  If you use CricAPI, set <code className="text-primary/90">CRICAPI_KEY</code>{" "}
-                  for Vercel <span className="font-medium text-foreground/90">Production</span>{" "}
-                  (and Preview if you use it). Optionally set{" "}
-                  <code className="text-primary/90">IPL_SERIES_ID</code> from the CricAPI series
-                  list. Otherwise the app should fall back to the built-in schedule — try a hard
-                  refresh.
+                  Add <code className="text-primary/90">CRICAPI_KEY</code> for local or Vercel,
+                  and optionally pin <code className="text-primary/90">IPL_SERIES_ID</code> to the
+                  live IPL season. The app no longer invents fixtures when the live feed is
+                  missing.
                 </p>
               </div>
             )}
@@ -252,6 +251,7 @@ function MatchRow({ match, completed }: { match: IPLMatch; completed?: boolean }
   const t2 = match.teams?.[1] || "Team 2";
   const t1Short = getTeamShortName(t1);
   const t2Short = getTeamShortName(t2);
+  const bettingOpen = isBettingOpen(match);
 
   return (
     <Link href={`/match/${match.id}`}>
@@ -276,13 +276,19 @@ function MatchRow({ match, completed }: { match: IPLMatch; completed?: boolean }
                 <span className="text-muted-foreground font-normal">vs</span> {t2Short}
               </span>
               {!completed && (
-                <Badge
-                  variant="outline"
-                  className="text-[10px] px-1.5 py-0 border-primary/40 text-primary bg-card"
-                >
-                  <Sparkles className="w-2.5 h-2.5 mr-0.5" />
-                  Bet
-                </Badge>
+                bettingOpen ? (
+                  <Badge
+                    variant="outline"
+                    className="text-[10px] px-1.5 py-0 border-primary/40 text-primary bg-card"
+                  >
+                    <Sparkles className="w-2.5 h-2.5 mr-0.5" />
+                    Bet
+                  </Badge>
+                ) : (
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    Locked
+                  </Badge>
+                )
               )}
               {completed && (
                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0">

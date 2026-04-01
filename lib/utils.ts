@@ -44,6 +44,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function getDisplayMatchName(match: Pick<IPLMatch, "name" | "teams">): string {
+  if (match.teams?.length === 2) {
+    return `${match.teams[0]} vs ${match.teams[1]}`;
+  }
+  return (match.name || "").split(",")[0].trim();
+}
+
+export function isBettingOpen(match: IPLMatch): boolean {
+  if (match.matchEnded || match.matchStarted) return false;
+  if (isMatchCompleted(match)) return false;
+
+  const kickoff = new Date(match.dateTimeGMT || match.date).getTime();
+  if (!Number.isNaN(kickoff) && kickoff <= Date.now()) return false;
+
+  return true;
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
@@ -96,6 +113,11 @@ export function formatTime(dateStr: string): string {
 }
 
 export function getTeamShortName(fullName: string): string {
+  const normalized = fullName
+    .split(",")[0]
+    .replace(/\s+vs\s+.*/i, "")
+    .trim();
+
   const shortNames: Record<string, string> = {
     "Chennai Super Kings": "CSK",
     "Mumbai Indians": "MI",
@@ -109,7 +131,7 @@ export function getTeamShortName(fullName: string): string {
     "Gujarat Titans": "GT",
     "Lucknow Super Giants": "LSG",
   };
-  return shortNames[fullName] || fullName.slice(0, 3).toUpperCase();
+  return shortNames[normalized] || normalized.slice(0, 3).toUpperCase();
 }
 
 export function getTeamColor(shortName: string): string {
