@@ -1,2 +1,15 @@
 .vercel
+
+# dependencies
+node_modules
+
+# Next.js build output / cache
+.next
+out
+
+# local env files (never commit secrets)
 .env*.local
+.env
+
+# OS
+.DS_Store
