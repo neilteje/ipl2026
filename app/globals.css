@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* IPL Brand Colors - Blue & Orange */
+    --background: 220 30% 6%;
+    --foreground: 210 25% 96%;
+    --card: 220 28% 9%;
+    --card-foreground: 210 25% 96%;
+    --popover: 220 28% 10%;
+    --popover-foreground: 210 25% 96%;
+    /* IPL Blue primary */
+    --primary: 214 100% 50%;
+    --primary-foreground: 0 0% 100%;
+    /* IPL Orange accent */
+    --accent-orange: 25 95% 53%;
+    --secondary: 220 20% 12%;
+    --secondary-foreground: 210 20% 92%;
+    --muted: 220 18% 11%;
+    --muted-foreground: 215 12% 60%;
+    --accent: 220 18% 14%;
+    --accent-foreground: 210 25% 96%;
+    --destructive: 0 55% 48%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 220 18% 16%;
+    --input: 220 18% 14%;
+    --ring: 214 100% 50%;
+    --radius: 0.65rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+}
+
+/* Subtle pitch grid — depth without gradients */
+.app-backdrop {
+  background-color: hsl(var(--background));
+  background-image: linear-gradient(
+      hsl(220 14% 9% / 0.97) 0%,
+      hsl(220 16% 7%) 100%
+    ),
+    linear-gradient(
+      rgba(255, 255, 255, 0.022) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.022) 1px,
+      transparent 1px
+    );
+  background-size: auto, 28px 28px, 28px 28px;
+  background-position: center;
+}
+
+/* Raised “physical” panel */
+@layer components {
+  .surface-raised {
+    @apply rounded-xl border border-white/[0.07] bg-card text-card-foreground;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+      0 10px 28px -12px rgba(0, 0, 0, 0.55);
+  }
+
+  .surface-inset {
+    @apply rounded-lg border border-black/30 bg-muted/40;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35) inset;
+  }
+
+  .surface-header {
+    @apply border-b border-white/[0.06] bg-card/95 backdrop-blur-md;
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted) / 0.35);
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.45);
+}
