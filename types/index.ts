@@ -50,8 +50,8 @@ export interface BetLine {
   description: string;
   shortDesc: string;
   line: number;
-  overOdds: number;   // payout multiplier for OVER/YES (e.g. 1.9)
-  underOdds: number;  // payout multiplier for UNDER/NO
+  overOdds: number;   // decimal odds for OVER/YES (e.g. 1.92)
+  underOdds: number;  // decimal odds for UNDER/NO
   unit: string;       // "runs", "wickets", "sixes", etc.
   result?: BetResult;
   isPlayerProp: boolean;

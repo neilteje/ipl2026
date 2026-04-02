@@ -6,9 +6,10 @@
 
 import { promises as fs } from "fs";
 import path from "path";
-import { BetLine, Parlay, MatchBettingData } from "@/types";
+import { BetLine, IPLMatch, Parlay, MatchBettingData } from "@/types";
 import { ChatMessage } from "@/components/ChatPanel";
 import { getIPLMatches } from "@/lib/cricket-api";
+import { normalizeUserName } from "@/lib/utils";
 
 const LOCAL_STORE_PATH = process.env.LOCAL_STORE_PATH || "/tmp/ipl-parlay-store.json";
 let localWriteQueue = Promise.resolve();
@@ -118,7 +119,7 @@ async function kvDelete(key: string): Promise<void> {
 
 // ─── BET LINES ─────────────────────────────────────────────────────────────
 
-const BETS_CACHE_VERSION = "v2";
+const BETS_CACHE_VERSION = "v4";
 const BETS_KEY = (matchId: string) => `bets:${BETS_CACHE_VERSION}:${matchId}`;
 
 export async function saveBets(matchId: string, bets: BetLine[]): Promise<void> {
@@ -149,6 +150,7 @@ export async function updateBetResult(
 // Track all matchIds that have ever had a parlay, so the leaderboard can aggregate
 
 const MATCH_REGISTRY_KEY = "match_registry";
+const MATCH_META_KEY = (matchId: string) => `match_meta:${matchId}`;
 
 async function registerMatch(matchId: string): Promise<void> {
   const existing = (await kvGet<string[]>(MATCH_REGISTRY_KEY)) || [];
@@ -159,6 +161,14 @@ async function registerMatch(matchId: string): Promise<void> {
 
 export async function getAllMatchIds(): Promise<string[]> {
   return (await kvGet<string[]>(MATCH_REGISTRY_KEY)) || [];
+}
+
+export async function saveMatchMetadata(match: IPLMatch): Promise<void> {
+  await kvSet(MATCH_META_KEY(match.id), match, 60 * 60 * 24 * 30);
+}
+
+export async function getMatchMetadata(matchId: string): Promise<IPLMatch | null> {
+  return kvGet<IPLMatch>(MATCH_META_KEY(matchId));
 }
 
 function isLegacyMockMatchId(matchId: string): boolean {
@@ -182,6 +192,8 @@ async function getValidRegisteredMatchIds(): Promise<string[]> {
 
 const PARLAY_KEY = (parlayId: string) => `parlay:${parlayId}`;
 const MATCH_PARLAYS_KEY = (matchId: string) => `match_parlays:${matchId}`;
+const MATCH_USER_PARLAY_KEY = (matchId: string, userName: string) =>
+  `match_user_parlay:${matchId}:${normalizeUserName(userName)}`;
 
 export async function saveParlay(parlay: Parlay): Promise<void> {
   await kvSet(PARLAY_KEY(parlay.id), parlay, 60 * 60 * 24 * 60); // 60 days
@@ -191,6 +203,8 @@ export async function saveParlay(parlay: Parlay): Promise<void> {
     await kvSet(MATCH_PARLAYS_KEY(parlay.matchId), [...existing, parlay.id]);
   }
 
+  await kvSet(MATCH_USER_PARLAY_KEY(parlay.matchId, parlay.userName), parlay.id, 60 * 60 * 24 * 60);
+
   // Register this match in the global registry for leaderboard aggregation
   await registerMatch(parlay.matchId);
 }
@@ -199,13 +213,37 @@ export async function getParlay(parlayId: string): Promise<Parlay | null> {
   return kvGet<Parlay>(PARLAY_KEY(parlayId));
 }
 
+export async function getParlayForUserMatch(matchId: string, userName: string): Promise<Parlay | null> {
+  const normalized = normalizeUserName(userName);
+  if (!normalized) return null;
+
+  const indexedId = await kvGet<string>(MATCH_USER_PARLAY_KEY(matchId, userName));
+  if (indexedId) {
+    const indexedParlay = await getParlay(indexedId);
+    if (indexedParlay) return indexedParlay;
+    await kvDelete(MATCH_USER_PARLAY_KEY(matchId, userName));
+  }
+
+  const parlays = await getParlaysForMatch(matchId);
+  const fallback = parlays.find((parlay) => normalizeUserName(parlay.userName) === normalized) || null;
+
+  if (fallback) {
+    await kvSet(MATCH_USER_PARLAY_KEY(matchId, fallback.userName), fallback.id, 60 * 60 * 24 * 60);
+  }
+
+  return fallback;
+}
+
 export async function deleteParlay(parlayId: string, requestingUser: string): Promise<{ ok: boolean; error?: string }> {
   const parlay = await getParlay(parlayId);
   if (!parlay) return { ok: false, error: "Parlay not found" };
-  if (parlay.userName !== requestingUser) return { ok: false, error: "Not your parlay" };
+  if (normalizeUserName(parlay.userName) !== normalizeUserName(requestingUser)) {
+    return { ok: false, error: "Not your parlay" };
+  }
 
   // Remove the parlay record
   await kvDelete(PARLAY_KEY(parlayId));
+  await kvDelete(MATCH_USER_PARLAY_KEY(parlay.matchId, parlay.userName));
 
   // Remove from the match parlay list
   const existing = (await kvGet<string[]>(MATCH_PARLAYS_KEY(parlay.matchId))) || [];

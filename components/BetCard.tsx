@@ -35,6 +35,7 @@ export function BetCard({ bet, selectedLeg, onSelect, onDeselect, disabled }: Be
   const isResolved = !!bet.result;
   const overSelected = selectedLeg?.direction === "over" || selectedLeg?.direction === "yes";
   const underSelected = selectedLeg?.direction === "under" || selectedLeg?.direction === "no";
+  const isAlternateLine = bet.isPlayerProp && /\d+\+$/.test(bet.shortDesc);
 
   const overLabel = bet.unit === "wickets" || bet.unit === "runs" ? "OVER" : "OVER";
   const underLabel = bet.unit === "wickets" || bet.unit === "runs" ? "UNDER" : "UNDER";
@@ -121,6 +122,14 @@ export function BetCard({ bet, selectedLeg, onSelect, onDeselect, disabled }: Be
               >
                 <User className="w-2.5 h-2.5 mr-0.5" />
                 Player prop
+              </Badge>
+            )}
+            {isAlternateLine && (
+              <Badge
+                variant="outline"
+                className="text-[10px] px-1.5 py-0 bg-zinc-900/70 text-amber-200 border-amber-500/30"
+              >
+                Alt line
               </Badge>
             )}
           </div>

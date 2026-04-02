@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Parlay, BetLine } from "@/types";
-import { formatCurrency, getParlayMultiplier, cn } from "@/lib/utils";
+import { formatCurrency, getParlayMultiplier, cn, normalizeUserName } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -87,7 +87,7 @@ export function Leaderboard({ parlays, bets, currentUser, onDeleteParlay }: Lead
     <>
       <div className="space-y-3">
         {sorted.map((parlay, rank) => {
-          const isOwn = currentUser && parlay.userName === currentUser;
+          const isOwn = currentUser && normalizeUserName(parlay.userName) === normalizeUserName(currentUser);
 
           return (
             <Card
@@ -135,7 +135,7 @@ export function Leaderboard({ parlays, bets, currentUser, onDeleteParlay }: Lead
                         </div>
                       ) : null}
                       <div className="text-xs text-muted-foreground">
-                        ${parlay.betAmount} · {parlay.legs.length}L · {getParlayMultiplier(parlay.legs.length)}x
+                        ${parlay.betAmount} · {parlay.legs.length}L · {getParlayMultiplier(parlay.legs)}x
                       </div>
                     </div>
 

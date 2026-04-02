@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveParlay, getParlaysForMatch } from "@/lib/db";
+import { saveParlay, getParlaysForMatch, getParlayForUserMatch } from "@/lib/db";
 import { Parlay, ParlayLeg } from "@/types";
 import { calculateParlayPayout, generateId } from "@/lib/utils";
 import { getOrCreateMatchBets } from "@/lib/betting-service";
@@ -19,7 +19,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    if (userName.length > 30) {
+    const trimmedUserName = userName.trim();
+
+    if (!trimmedUserName) {
+      return NextResponse.json({ error: "Name is required" }, { status: 400 });
+    }
+
+    if (trimmedUserName.length > 30) {
       return NextResponse.json({ error: "Name too long" }, { status: 400 });
     }
 
@@ -53,19 +59,38 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const validBetIds = new Set(bettingPayload.bets.map((bet) => bet.id));
-    if (legs.some((leg) => !validBetIds.has(leg.betId))) {
+    const existingParlay = await getParlayForUserMatch(matchId, trimmedUserName);
+    if (existingParlay) {
+      return NextResponse.json(
+        { error: "You already have a parlay for this match. Delete it first to replace it." },
+        { status: 409 }
+      );
+    }
+
+    const betById = new Map(bettingPayload.bets.map((bet) => [bet.id, bet]));
+    if (legs.some((leg) => !betById.has(leg.betId))) {
       return NextResponse.json({ error: "One or more legs are invalid for this match" }, { status: 400 });
     }
 
-    const potentialPayout = calculateParlayPayout(betAmount, legs.length);
+    const pricedLegs: ParlayLeg[] = legs.map((leg) => {
+      const bet = betById.get(leg.betId)!;
+      const isOver = leg.direction === "over" || leg.direction === "yes";
+
+      return {
+        betId: leg.betId,
+        direction: leg.direction,
+        odds: isOver ? bet.overOdds : bet.underOdds,
+      };
+    });
+
+    const potentialPayout = calculateParlayPayout(betAmount, pricedLegs);
 
     const parlay: Parlay = {
       id: generateId(),
       matchId,
-      userName: userName.trim(),
+      userName: trimmedUserName,
       betAmount,
-      legs,
+      legs: pricedLegs,
       createdAt: new Date().toISOString(),
       status: "pending",
       potentialPayout,

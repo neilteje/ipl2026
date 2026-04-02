@@ -12,6 +12,7 @@ import {
   calculateParlayPayout,
   getParlayMultiplier,
   formatCurrency,
+  formatOdds,
   cn,
 } from "@/lib/utils";
 import {
@@ -50,8 +51,8 @@ export function ParlayPanel({
 
   const getBetForLeg = (leg: ParlayLeg) => bets.find((b) => b.id === leg.betId);
 
-  const multiplier = getParlayMultiplier(legs.length);
-  const potentialPayout = calculateParlayPayout(betAmount, legs.length);
+  const multiplier = getParlayMultiplier(legs);
+  const potentialPayout = calculateParlayPayout(betAmount, legs);
 
   const handleSubmit = async () => {
     if (locked || !currentUser || legs.length === 0 || betAmount <= 0) return;
@@ -125,7 +126,7 @@ export function ParlayPanel({
                       variant="outline"
                     >
                       {isOver ? <TrendingUp className="w-2.5 h-2.5 mr-0.5" /> : <TrendingDown className="w-2.5 h-2.5 mr-0.5" />}
-                      {isOver ? "OVER" : "UNDER"} {bet.line}
+                      {isOver ? "OVER" : "UNDER"} {bet.line} @ {formatOdds(leg.odds)}
                     </Badge>
                   </div>
                 </div>

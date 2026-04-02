@@ -51,6 +51,10 @@ export function getDisplayMatchName(match: Pick<IPLMatch, "name" | "teams">): st
   return (match.name || "").split(",")[0].trim();
 }
 
+export function normalizeUserName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export function isBettingOpen(match: IPLMatch): boolean {
   if (match.matchEnded || match.matchStarted) return false;
   if (isMatchCompleted(match)) return false;
@@ -70,19 +74,39 @@ export function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
-export function calculateParlayPayout(betAmount: number, legs: number): number {
-  // Each leg multiplies payout by 1.9 (slight house edge for balance)
-  const multiplier = Math.pow(1.9, legs);
+type ParlayPricingInput = number | number[] | Array<{ odds: number }>;
+
+const TYPICAL_LEG_ODDS = 1.82;
+
+function getParlayOdds(input: ParlayPricingInput): number[] {
+  if (typeof input === "number") {
+    return Array.from({ length: Math.max(0, input) }, () => TYPICAL_LEG_ODDS);
+  }
+
+  return input
+    .map((value) => (typeof value === "number" ? value : value.odds))
+    .filter((value) => Number.isFinite(value) && value > 1);
+}
+
+export function calculateParlayPayout(betAmount: number, input: ParlayPricingInput): number {
+  const multiplier = getParlayMultiplier(input);
   return Math.round(betAmount * multiplier * 100) / 100;
 }
 
-export function getParlayMultiplier(legs: number): number {
-  return Math.round(Math.pow(1.9, legs) * 100) / 100;
+export function getParlayMultiplier(input: ParlayPricingInput): number {
+  const odds = getParlayOdds(input);
+  if (!odds.length) return 0;
+  return Math.round(odds.reduce((product, odd) => product * odd, 1) * 100) / 100;
 }
 
-export function formatOdds(multiplier: number): string {
-  // Display as simple multiplier (e.g., "1.9x") for clarity
-  return `${multiplier.toFixed(2)}x`;
+export function formatOdds(decimalOdds: number): string {
+  if (!Number.isFinite(decimalOdds) || decimalOdds <= 1) return "EVEN";
+
+  if (decimalOdds >= 2) {
+    return `+${Math.round((decimalOdds - 1) * 100)}`;
+  }
+
+  return `${Math.round(-100 / (decimalOdds - 1))}`;
 }
 
 export function formatDate(dateStr: string): string {

@@ -1,6 +1,6 @@
 import { generateBetsForMatch } from "@/lib/bet-generator";
-import { getMatchById } from "@/lib/cricket-api";
-import { getBets, saveBets } from "@/lib/db";
+import { getIPLMatches, getMatchById } from "@/lib/cricket-api";
+import { getBets, saveBets, saveMatchMetadata } from "@/lib/db";
 import { isBettingOpen } from "@/lib/utils";
 import { BetLine, IPLMatch } from "@/types";
 
@@ -19,6 +19,7 @@ export async function getOrCreateMatchBets(
 
   const cachedBets = options.forceRegenerate ? null : await getBets(matchId);
   if (cachedBets?.length) {
+    await saveMatchMetadata(match);
     return {
       match,
       bets: cachedBets,
@@ -27,6 +28,7 @@ export async function getOrCreateMatchBets(
   }
 
   if (!isBettingOpen(match)) {
+    await saveMatchMetadata(match);
     return {
       match,
       bets: [],
@@ -34,8 +36,10 @@ export async function getOrCreateMatchBets(
     };
   }
 
-  const freshBets = generateBetsForMatch(match);
+  const seasonMatches = await getIPLMatches();
+  const freshBets = generateBetsForMatch(match, seasonMatches);
   await saveBets(matchId, freshBets);
+  await saveMatchMetadata(match);
 
   return {
     match,

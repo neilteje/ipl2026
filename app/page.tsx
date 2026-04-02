@@ -27,6 +27,8 @@ import {
   DollarSign,
 } from "lucide-react";
 
+const HOME_MATCH_LIMIT = 12;
+
 export default function HomePage() {
   const { userName, setUserName } = useUser();
   const [matches, setMatches] = useState<IPLMatch[]>([]);
@@ -54,7 +56,8 @@ export default function HomePage() {
   }, []);
 
   const upcomingMatches = matches.filter((m) => !isMatchCompleted(m));
-  const completedMatches = matches.filter((m) => isMatchCompleted(m));
+  const visibleUpcomingMatches = upcomingMatches.slice(0, HOME_MATCH_LIMIT);
+  const hiddenUpcomingCount = Math.max(0, upcomingMatches.length - visibleUpcomingMatches.length);
 
   return (
     <div className="min-h-screen">
@@ -196,33 +199,23 @@ export default function HomePage() {
 
         {!loading && !error && (
           <>
-            {upcomingMatches.length > 0 && (
+            {visibleUpcomingMatches.length > 0 && (
               <section className="mb-8">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.14em]">
-                    Upcoming
-                  </h3>
+                <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.14em]">
+                      Upcoming
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Showing the next {visibleUpcomingMatches.length} fixtures
+                    {hiddenUpcomingCount > 0 ? ` · ${hiddenUpcomingCount} later matches hidden` : ""}
+                  </p>
                 </div>
                 <div className="space-y-2.5">
-                  {upcomingMatches.map((match) => (
+                  {visibleUpcomingMatches.map((match) => (
                     <MatchRow key={match.id} match={match} />
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {completedMatches.length > 0 && (
-              <section>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-2 h-2 rounded-full bg-muted-foreground/70" />
-                  <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.14em]">
-                    Completed
-                  </h3>
-                </div>
-                <div className="space-y-2.5">
-                  {completedMatches.map((match) => (
-                    <MatchRow key={match.id} match={match} completed />
                   ))}
                 </div>
               </section>

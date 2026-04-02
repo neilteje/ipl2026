@@ -24,6 +24,7 @@ import {
   getTeamColor,
   isBettingOpen,
   isMatchCompleted,
+  normalizeUserName,
 } from "@/lib/utils";
 import {
   ArrowLeft,
@@ -114,6 +115,10 @@ export default function MatchPage() {
       throw new Error("Betting is closed for this match");
     }
 
+    if (userName && parlays.some((parlay) => normalizeUserName(parlay.userName) === normalizeUserName(userName))) {
+      throw new Error("You already have a parlay for this match. Delete it first to replace it.");
+    }
+
     const res = await fetch("/api/parlay", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -161,12 +166,28 @@ export default function MatchPage() {
   const t1Short = getTeamShortName(t1);
   const t2Short = getTeamShortName(t2);
   const matchTitle = match ? getDisplayMatchName(match) : "";
+  const currentUserParlay =
+    userName
+      ? parlays.find((parlay) => normalizeUserName(parlay.userName) === normalizeUserName(userName)) || null
+      : null;
   const bettingLocked = match ? !isBettingOpen(match) : false;
-  const lockedReason = bettingLocked
+  const bettingLockedReason = bettingLocked
     ? match && (match.matchEnded || isMatchCompleted(match))
       ? "Betting is closed because this match is already finished."
       : "Betting is locked because the match has already started."
     : null;
+  const entryLockedReason = currentUserParlay
+    ? "You already submitted a parlay for this match. Delete it from the leaderboard if you want to replace it."
+    : null;
+  const lockedReason = entryLockedReason || bettingLockedReason;
+  const betSelectionLocked = bettingLocked || !!currentUserParlay;
+
+  useEffect(() => {
+    if (currentUserParlay && parlayLegs.length > 0) {
+      setParlayLegs([]);
+      setShowParlay(false);
+    }
+  }, [currentUserParlay, parlayLegs.length]);
 
   const filteredBets =
     activeCategory === "All" ? bets : bets.filter((b) => b.category === activeCategory);
@@ -230,7 +251,7 @@ export default function MatchPage() {
                 <ShoppingCart className="w-3 h-3" />
                 {parlayLegs.length} leg{parlayLegs.length > 1 ? "s" : ""}
                 {" · "}
-                {getParlayMultiplier(parlayLegs.length)}x
+                {getParlayMultiplier(parlayLegs)}x
               </Button>
             )}
           </div>
@@ -308,7 +329,7 @@ export default function MatchPage() {
                         selectedLeg={parlayLegs.find((l) => l.betId === bet.id)}
                         onSelect={handleSelectLeg}
                         onDeselect={handleDeselectLeg}
-                        disabled={bettingLocked}
+                        disabled={betSelectionLocked}
                       />
                     ))}
                   </div>
@@ -397,7 +418,7 @@ export default function MatchPage() {
                   Parlay · {parlayLegs.length} leg{parlayLegs.length > 1 ? "s" : ""}
                 </span>
                 <Badge className="border-primary/35 text-primary bg-card text-[10px] shadow-raised-sm">
-                  {getParlayMultiplier(parlayLegs.length)}x
+                  {getParlayMultiplier(parlayLegs)}x
                 </Badge>
               </div>
               {showParlay ? (

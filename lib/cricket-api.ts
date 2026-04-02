@@ -1,4 +1,4 @@
-import { IPLMatch, TeamInfo } from "@/types";
+import { IPLMatch, ScoreInfo, TeamInfo } from "@/types";
 
 const CRICAPI_BASE = "https://api.cricapi.com/v1";
 const API_KEY = process.env.CRICAPI_KEY?.trim();
@@ -18,6 +18,43 @@ interface SeriesSearchRow {
 type CricApiMatch = IPLMatch & {
   series_id?: string;
 };
+
+interface CricApiPlayerRef {
+  id?: string;
+  name?: string;
+  altnames?: string[];
+}
+
+interface CricApiScorecardBatter {
+  batsman?: CricApiPlayerRef;
+  r?: number;
+  b?: number;
+  ["4s"]?: number;
+  ["6s"]?: number;
+}
+
+interface CricApiScorecardBowler {
+  bowler?: CricApiPlayerRef;
+  o?: number;
+  r?: number;
+  w?: number;
+  nb?: number;
+  wd?: number;
+}
+
+export interface MatchScorecardInnings {
+  inning?: string;
+  batting?: CricApiScorecardBatter[];
+  bowling?: CricApiScorecardBowler[];
+  catching?: unknown[];
+  extras?: Record<string, number>;
+  totals?: Record<string, number>;
+}
+
+export interface MatchScorecard extends IPLMatch {
+  score?: ScoreInfo[];
+  scorecard?: MatchScorecardInnings[];
+}
 
 const TEAM_ALIASES: Record<string, string> = {
   "Royal Challengers Bangalore": "Royal Challengers Bengaluru",
@@ -93,6 +130,14 @@ function normalizeMatch(match: CricApiMatch): IPLMatch {
     hasSquad: match.hasSquad,
     matchStarted: match.matchStarted,
     matchEnded: match.matchEnded,
+  };
+}
+
+function normalizeScorecardMatch(match: CricApiMatch & { scorecard?: MatchScorecardInnings[] }): MatchScorecard {
+  return {
+    ...normalizeMatch(match),
+    score: match.score,
+    scorecard: match.scorecard,
   };
 }
 
@@ -255,6 +300,14 @@ export async function getMatchById(matchId: string): Promise<IPLMatch | null> {
   }
 
   try {
+    const matches = await getIPLMatches();
+    const cachedMatch = matches.find((match) => match.id === matchId);
+    if (cachedMatch) return cachedMatch;
+  } catch (err) {
+    console.warn(`series/current match lookup failed for ${matchId}:`, err);
+  }
+
+  try {
     const res = await fetch(`${CRICAPI_BASE}/match_info?apikey=${API_KEY}&id=${matchId}`, {
       next: { revalidate: 300 },
     });
@@ -269,6 +322,29 @@ export async function getMatchById(matchId: string): Promise<IPLMatch | null> {
     console.warn(`match_info lookup failed for ${matchId}:`, err);
   }
 
-  const matches = await getIPLMatches();
-  return matches.find((match) => match.id === matchId) || null;
+  return null;
+}
+
+export async function getMatchScorecard(matchId: string): Promise<MatchScorecard | null> {
+  if (!API_KEY) {
+    console.warn(`CRICAPI_KEY not set; unable to fetch scorecard for ${matchId}`);
+    return null;
+  }
+
+  try {
+    const res = await fetch(`${CRICAPI_BASE}/match_scorecard?apikey=${API_KEY}&id=${matchId}`, {
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json();
+    if (data.status === "success" && data.data) {
+      return normalizeScorecardMatch(data.data as CricApiMatch & { scorecard?: MatchScorecardInnings[] });
+    }
+  } catch (err) {
+    console.warn(`match_scorecard lookup failed for ${matchId}:`, err);
+  }
+
+  return null;
 }
