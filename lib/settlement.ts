@@ -8,7 +8,7 @@ import {
   updateBetResult,
   updateParlayStatus,
 } from "@/lib/db";
-import { calculateParlayPayout, isMatchCompleted } from "@/lib/utils";
+import { calculateParlayPayout, getMatchKickoffTime, isMatchCompleted } from "@/lib/utils";
 import { BetLine, IPLMatch } from "@/types";
 
 interface ResolvedBetInput {
@@ -130,7 +130,7 @@ function matchDateKey(match: IPLMatch): string {
 }
 
 function getMatchAgeHours(match: IPLMatch): number {
-  const kickoff = new Date(match.dateTimeGMT || match.date).getTime();
+  const kickoff = getMatchKickoffTime(match);
   if (Number.isNaN(kickoff)) return 0;
   return (Date.now() - kickoff) / (1000 * 60 * 60);
 }
@@ -184,6 +184,30 @@ function getTeamScoreEntry(match: IPLMatch, teamName: string, indexHint: number)
 function winnerForBet(bet: BetLine, actualValue: number): "over" | "under" | "push" {
   if (Math.abs(actualValue - bet.line) < 0.01) return "push";
   return actualValue > bet.line ? "over" : "under";
+}
+
+function deriveActualValueFromMatchSummary(bet: BetLine, match: IPLMatch): number | null {
+  const innings = match.score || [];
+  if (!innings.length) return null;
+
+  if (bet.shortDesc === "Match Total Runs") {
+    return innings.reduce((sum, entry) => sum + (entry.r || 0), 0);
+  }
+
+  if (bet.shortDesc === "Highest Innings") {
+    return innings.reduce((max, entry) => Math.max(max, entry.r || 0), 0);
+  }
+
+  if (bet.shortDesc === "Match Total Wickets") {
+    return innings.reduce((sum, entry) => sum + (entry.w || 0), 0);
+  }
+
+  if (bet.category === "Innings" && bet.shortDesc.endsWith(" Total") && bet.teamName) {
+    const scoreEntry = getTeamScoreEntry(match, bet.teamName, 0);
+    return scoreEntry?.r ?? null;
+  }
+
+  return null;
 }
 
 function buildPrimarySnapshot(match: IPLMatch & { scorecard?: CricApiScorecardInnings[] }): PrimaryMatchSnapshot {
@@ -690,7 +714,8 @@ async function settleMatchAutomatically(matchId: string): Promise<AutoSettlement
     primary = buildCricsheetPrimarySnapshot(cricsheetMatch);
   }
 
-  if (!primary) {
+  const hasScoreSummary = !!match?.score?.length;
+  if (!primary && !hasScoreSummary) {
     return {
       matchId,
       status: "pending",
@@ -713,7 +738,9 @@ async function settleMatchAutomatically(matchId: string): Promise<AutoSettlement
   const stillUnresolved: string[] = [];
 
   for (const bet of unresolvedBets) {
-    const actualValue = deriveActualValueForBet(bet, primary, detailed);
+    const actualValue =
+      (primary ? deriveActualValueForBet(bet, primary, detailed) : null) ??
+      (match ? deriveActualValueFromMatchSummary(bet, match) : null);
     if (actualValue === null) {
       stillUnresolved.push(bet.id);
       continue;

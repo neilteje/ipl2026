@@ -6,6 +6,7 @@ node_modules
 # Next.js build output / cache
 .next
 out
+*.tsbuildinfo
 
 # local env files (never commit secrets)
 .env*.local

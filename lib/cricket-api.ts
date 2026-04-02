@@ -1,4 +1,5 @@
 import { IPLMatch, ScoreInfo, TeamInfo } from "@/types";
+import { getMatchKickoffTime } from "@/lib/utils";
 
 const CRICAPI_BASE = "https://api.cricapi.com/v1";
 const API_KEY = process.env.CRICAPI_KEY?.trim();
@@ -163,8 +164,8 @@ function scoreSeriesCandidate(row: SeriesSearchRow): number {
 
 function sortMatches(matches: IPLMatch[]): IPLMatch[] {
   return [...matches].sort((a, b) => {
-    const dateA = new Date(a.dateTimeGMT || a.date).getTime();
-    const dateB = new Date(b.dateTimeGMT || b.date).getTime();
+    const dateA = getMatchKickoffTime(a);
+    const dateB = getMatchKickoffTime(b);
     return dateA - dateB;
   });
 }

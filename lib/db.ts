@@ -8,7 +8,6 @@ import { promises as fs } from "fs";
 import path from "path";
 import { BetLine, IPLMatch, Parlay, MatchBettingData } from "@/types";
 import { ChatMessage } from "@/components/ChatPanel";
-import { getIPLMatches } from "@/lib/cricket-api";
 import { normalizeUserName } from "@/lib/utils";
 
 const LOCAL_STORE_PATH = process.env.LOCAL_STORE_PATH || "/tmp/ipl-parlay-store.json";
@@ -176,16 +175,22 @@ function isLegacyMockMatchId(matchId: string): boolean {
 }
 
 async function getValidRegisteredMatchIds(): Promise<string[]> {
-  const matchIds = (await getAllMatchIds()).filter((matchId) => !isLegacyMockMatchId(matchId));
+  return (await getAllMatchIds()).filter((matchId) => !isLegacyMockMatchId(matchId));
+}
+
+export async function getRegisteredMatchesMetadata(): Promise<IPLMatch[]> {
+  const matchIds = await getValidRegisteredMatchIds();
   if (!matchIds.length) return [];
 
-  try {
-    const liveMatchIds = new Set((await getIPLMatches()).map((match) => match.id));
-    if (!liveMatchIds.size) return matchIds;
-    return matchIds.filter((matchId) => liveMatchIds.has(matchId));
-  } catch {
-    return matchIds;
+  const matches = await Promise.all(matchIds.map((matchId) => getMatchMetadata(matchId)));
+  const byId = new Map<string, IPLMatch>();
+
+  for (const match of matches) {
+    if (!match) continue;
+    byId.set(match.id, match);
   }
+
+  return Array.from(byId.values());
 }
 
 // ─── PARLAYS ───────────────────────────────────────────────────────────────

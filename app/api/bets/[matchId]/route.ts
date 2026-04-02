@@ -21,7 +21,7 @@ export async function GET(
         bets: [],
         match: payload.match,
         bettingClosed: true,
-        error: "Betting is closed because this match has already started.",
+        error: "Betting is closed because this match starts in less than 1 hour.",
       });
     }
 
@@ -51,7 +51,7 @@ export async function DELETE(
 
     if (payload.bettingClosed) {
       return NextResponse.json(
-        { error: "Cannot regenerate bets after the match has started", match: payload.match },
+        { error: "Cannot regenerate bets within 1 hour of match start", match: payload.match },
         { status: 409 }
       );
     }

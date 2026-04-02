@@ -19,6 +19,8 @@ import {
   cn,
   getParlayMultiplier,
   formatCurrency,
+  getBettingCloseTime,
+  getMatchKickoffTime,
   getDisplayMatchName,
   getTeamShortName,
   getTeamColor,
@@ -171,10 +173,20 @@ export default function MatchPage() {
       ? parlays.find((parlay) => normalizeUserName(parlay.userName) === normalizeUserName(userName)) || null
       : null;
   const bettingLocked = match ? !isBettingOpen(match) : false;
+  const matchKickoff = match ? getMatchKickoffTime(match) : Number.NaN;
+  const bettingCloseTime = match ? getBettingCloseTime(match) : Number.NaN;
+  const pregameLockActive =
+    !!match &&
+    !Number.isNaN(matchKickoff) &&
+    !Number.isNaN(bettingCloseTime) &&
+    Date.now() >= bettingCloseTime &&
+    Date.now() < matchKickoff;
   const bettingLockedReason = bettingLocked
     ? match && (match.matchEnded || isMatchCompleted(match))
       ? "Betting is closed because this match is already finished."
-      : "Betting is locked because the match has already started."
+      : pregameLockActive
+        ? "Betting is locked during the final hour before match start."
+        : "Betting is locked because the match has already started."
     : null;
   const entryLockedReason = currentUserParlay
     ? "You already submitted a parlay for this match. Delete it from the leaderboard if you want to replace it."

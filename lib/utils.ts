@@ -2,6 +2,39 @@ import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { IPLMatch } from "@/types";
 
+const BETTING_CLOSE_BUFFER_MS = 60 * 60 * 1000;
+
+function parseMatchTimestamp(rawValue?: string, assumeUtc = false): number {
+  const raw = rawValue?.trim();
+  if (!raw) return Number.NaN;
+
+  const normalized = raw.replace(" ", "T");
+  if (assumeUtc) {
+    const withTimezone =
+      /(?:z|[+-]\d{2}:?\d{2})$/i.test(normalized) ? normalized : `${normalized}Z`;
+    const utcTimestamp = Date.parse(withTimezone);
+    if (!Number.isNaN(utcTimestamp)) return utcTimestamp;
+  }
+
+  const direct = Date.parse(raw);
+  if (!Number.isNaN(direct)) return direct;
+
+  return Date.parse(normalized);
+}
+
+export function getMatchKickoffTime(match: Pick<IPLMatch, "dateTimeGMT" | "date">): number {
+  const gmtKickoff = parseMatchTimestamp(match.dateTimeGMT, true);
+  if (!Number.isNaN(gmtKickoff)) return gmtKickoff;
+
+  return parseMatchTimestamp(match.date);
+}
+
+export function getBettingCloseTime(match: Pick<IPLMatch, "dateTimeGMT" | "date">): number {
+  const kickoff = getMatchKickoffTime(match);
+  if (Number.isNaN(kickoff)) return Number.NaN;
+  return kickoff - BETTING_CLOSE_BUFFER_MS;
+}
+
 /**
  * Whether a fixture is finished for home-page grouping.
  * CricAPI often uses statuses like "Toss won by MI, elected to field" — naive `status.includes("won")`
@@ -34,7 +67,7 @@ export function isMatchCompleted(m: IPLMatch): boolean {
   if (/\bwon by\b.*\b(runs|wickets)\b/i.test(s)) return true;
 
   // Future kickoff with no finish signal → treat as upcoming
-  const kickoff = new Date(m.dateTimeGMT || m.date).getTime();
+  const kickoff = getMatchKickoffTime(m);
   if (!Number.isNaN(kickoff) && kickoff > Date.now()) return false;
 
   return false;
@@ -59,8 +92,8 @@ export function isBettingOpen(match: IPLMatch): boolean {
   if (match.matchEnded || match.matchStarted) return false;
   if (isMatchCompleted(match)) return false;
 
-  const kickoff = new Date(match.dateTimeGMT || match.date).getTime();
-  if (!Number.isNaN(kickoff) && kickoff <= Date.now()) return false;
+  const bettingCloseTime = getBettingCloseTime(match);
+  if (!Number.isNaN(bettingCloseTime) && Date.now() >= bettingCloseTime) return false;
 
   return true;
 }
@@ -111,7 +144,7 @@ export function formatOdds(decimalOdds: number): string {
 
 export function formatDate(dateStr: string): string {
   try {
-    const date = new Date(dateStr);
+    const date = getDisplayDate(dateStr);
     return date.toLocaleDateString("en-US", {
       weekday: "short",
       month: "short",
@@ -125,12 +158,38 @@ export function formatDate(dateStr: string): string {
 
 export function formatTime(dateStr: string): string {
   try {
-    const date = new Date(dateStr);
+    const date = getDisplayDate(dateStr);
     return date.toLocaleTimeString("en-US", {
       hour: "numeric",
       minute: "2-digit",
       timeZoneName: "short",
     });
+  } catch {
+    return "";
+  }
+}
+
+function getDisplayDate(dateStr: string): Date {
+  const trimmed = dateStr.trim();
+  const timestamp = parseMatchTimestamp(
+    trimmed,
+    /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(:\d{2})?$/.test(trimmed)
+  );
+  return new Date(Number.isNaN(timestamp) ? trimmed : timestamp);
+}
+
+function formatTimeForZone(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  }).format(date);
+}
+
+export function formatTimeCdtIst(dateStr: string): string {
+  try {
+    const date = getDisplayDate(dateStr);
+    return `CDT ${formatTimeForZone(date, "America/Chicago")} · IST ${formatTimeForZone(date, "Asia/Kolkata")}`;
   } catch {
     return "";
   }

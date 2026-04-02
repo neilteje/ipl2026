@@ -6,8 +6,11 @@ import { IPLMatch } from "@/types";
 import { useUser } from "@/lib/user-context";
 import {
   formatDate,
+  formatTimeCdtIst,
+  getBettingCloseTime,
   getTeamShortName,
   getTeamColor,
+  getMatchKickoffTime,
   cn,
   isMatchCompleted,
   isBettingOpen,
@@ -42,8 +45,8 @@ export default function HomePage() {
         const allMatches = data.matches || [];
         // Sort by date (earliest first)
         allMatches.sort((a: IPLMatch, b: IPLMatch) => {
-          const dateA = new Date(a.dateTimeGMT || a.date).getTime();
-          const dateB = new Date(b.dateTimeGMT || b.date).getTime();
+          const dateA = getMatchKickoffTime(a);
+          const dateB = getMatchKickoffTime(b);
           return dateA - dateB;
         });
         setMatches(allMatches);
@@ -56,6 +59,13 @@ export default function HomePage() {
   }, []);
 
   const upcomingMatches = matches.filter((m) => !isMatchCompleted(m));
+  const completedMatches = [...matches]
+    .filter((m) => isMatchCompleted(m))
+    .sort((a, b) => {
+      const dateA = getMatchKickoffTime(a);
+      const dateB = getMatchKickoffTime(b);
+      return dateB - dateA;
+    });
   const visibleUpcomingMatches = upcomingMatches.slice(0, HOME_MATCH_LIMIT);
   const hiddenUpcomingCount = Math.max(0, upcomingMatches.length - visibleUpcomingMatches.length);
 
@@ -221,6 +231,27 @@ export default function HomePage() {
               </section>
             )}
 
+            {completedMatches.length > 0 && (
+              <section className="mb-8">
+                <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-slate-400 shadow-[0_0_8px_rgba(148,163,184,0.35)]" />
+                    <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-[0.14em]">
+                      Finished
+                    </h3>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {completedMatches.length} completed fixture{completedMatches.length === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <div className="space-y-2.5">
+                  {completedMatches.map((match) => (
+                    <MatchRow key={match.id} match={match} completed />
+                  ))}
+                </div>
+              </section>
+            )}
+
             {matches.length === 0 && (
               <div className="surface-raised text-center py-16 px-4 max-w-md mx-auto">
                 <p className="text-muted-foreground">No matches loaded.</p>
@@ -245,6 +276,10 @@ function MatchRow({ match, completed }: { match: IPLMatch; completed?: boolean }
   const t1Short = getTeamShortName(t1);
   const t2Short = getTeamShortName(t2);
   const bettingOpen = isBettingOpen(match);
+  const bettingCloseTime = getBettingCloseTime(match);
+  const bettingCloseIso = Number.isNaN(bettingCloseTime)
+    ? null
+    : new Date(bettingCloseTime).toISOString();
 
   return (
     <Link href={`/match/${match.id}`}>
@@ -292,13 +327,24 @@ function MatchRow({ match, completed }: { match: IPLMatch; completed?: boolean }
             <div className="flex items-center gap-3 mt-0.5 flex-wrap">
               <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <Calendar className="w-3 h-3" />
-                {formatDate(match.dateTimeGMT || match.date)}
+                {formatDate(match.dateTimeGMT || match.date)} · {formatTimeCdtIst(match.dateTimeGMT || match.date)}
               </span>
               {match.venue && (
                 <span className="flex items-center gap-1 text-[11px] text-muted-foreground truncate max-w-[200px]">
                   <MapPin className="w-3 h-3 flex-shrink-0" />
                   <span className="truncate">{match.venue.split(",")[0]}</span>
                 </span>
+              )}
+            </div>
+            <div className="mt-1 text-[11px] text-muted-foreground">
+              {completed ? (
+                "Betting closed"
+              ) : bettingCloseIso ? (
+                <>
+                  Betting closes: {formatDate(bettingCloseIso)} · {formatTimeCdtIst(bettingCloseIso)}
+                </>
+              ) : (
+                "Betting closes 1 hour before start"
               )}
             </div>
             {match.score && match.score.length > 0 && (

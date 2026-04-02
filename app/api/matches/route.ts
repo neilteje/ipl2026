@@ -1,9 +1,32 @@
 import { NextResponse } from "next/server";
 import { getIPLMatches } from "@/lib/cricket-api";
+import { getRegisteredMatchesMetadata } from "@/lib/db";
+import { getMatchKickoffTime } from "@/lib/utils";
+import { IPLMatch } from "@/types";
 
 export async function GET() {
   try {
-    const matches = await getIPLMatches();
+    const [liveMatches, storedMatches] = await Promise.all([
+      getIPLMatches(),
+      getRegisteredMatchesMetadata(),
+    ]);
+
+    const matchById = new Map<string, IPLMatch>();
+
+    for (const match of storedMatches) {
+      matchById.set(match.id, match);
+    }
+
+    for (const match of liveMatches) {
+      matchById.set(match.id, match);
+    }
+
+    const matches = Array.from(matchById.values()).sort((a, b) => {
+      const dateA = getMatchKickoffTime(a);
+      const dateB = getMatchKickoffTime(b);
+      return dateA - dateB;
+    });
+
     return NextResponse.json({ matches });
   } catch (err) {
     console.error("Matches API error:", err);

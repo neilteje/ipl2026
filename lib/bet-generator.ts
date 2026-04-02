@@ -1,5 +1,5 @@
 import { BetLine, IPLMatch, TeamStats, VenueStats } from "@/types";
-import { isMatchCompleted } from "@/lib/utils";
+import { getMatchKickoffTime, isMatchCompleted } from "@/lib/utils";
 import { BatterProfile, BowlerProfile, getTeamPlayerPool } from "@/lib/player-pools";
 
 interface CalibratedTeamStats extends TeamStats {
@@ -313,7 +313,7 @@ function normalizeToken(value: string | undefined): string {
 }
 
 function matchTimestamp(match: IPLMatch): number {
-  return new Date(match.dateTimeGMT || match.date).getTime();
+  return getMatchKickoffTime(match);
 }
 
 function getHistoricalMatches(match: IPLMatch, seasonMatches: IPLMatch[]): IPLMatch[] {
