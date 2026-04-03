@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { saveParlay, getParlaysForMatch, getParlayForUserMatch } from "@/lib/db";
 import { Parlay, ParlayLeg } from "@/types";
-import { calculateParlayPayout, generateId } from "@/lib/utils";
+import { generateId, quoteParlay, validateParlayLegs } from "@/lib/utils";
 import { getOrCreateMatchBets } from "@/lib/betting-service";
 
 export async function POST(req: NextRequest) {
@@ -83,7 +83,12 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    const potentialPayout = calculateParlayPayout(betAmount, pricedLegs);
+    const validation = validateParlayLegs(pricedLegs, bettingPayload.bets);
+    if (!validation.valid) {
+      return NextResponse.json({ error: validation.error }, { status: 400 });
+    }
+
+    const quote = quoteParlay(betAmount, pricedLegs, bettingPayload.bets);
 
     const parlay: Parlay = {
       id: generateId(),
@@ -93,7 +98,13 @@ export async function POST(req: NextRequest) {
       legs: pricedLegs,
       createdAt: new Date().toISOString(),
       status: "pending",
-      potentialPayout,
+      potentialPayout: quote.potentialPayout,
+      pricingModel: quote.pricingModel,
+      multiplier: quote.multiplier,
+      rawMultiplier: quote.rawMultiplier,
+      rawPotentialPayout: quote.rawPotentialPayout,
+      correlationDiscountPct: quote.correlationDiscountPct,
+      correlationScore: quote.correlationScore,
     };
 
     await saveParlay(parlay);

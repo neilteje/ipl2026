@@ -1,6 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import type { IPLMatch } from "@/types";
+import type { BetLine, ParlayLeg, IPLMatch } from "@/types";
 
 const BETTING_CLOSE_BUFFER_MS = 60 * 60 * 1000;
 
@@ -110,6 +110,38 @@ export function formatCurrency(amount: number): string {
 type ParlayPricingInput = number | number[] | Array<{ odds: number }>;
 
 const TYPICAL_LEG_ODDS = 1.82;
+const CORRELATION_PRICING_VERSION = "correlation-v1";
+
+type MarketFamily =
+  | "match_total_runs"
+  | "match_total_wickets"
+  | "match_total_sixes"
+  | "highest_innings"
+  | "match_extras"
+  | "team_total"
+  | "team_powerplay"
+  | "team_opening"
+  | "team_top_score"
+  | "player_runs"
+  | "player_wickets"
+  | "other";
+
+type CorrelationFactors = Map<string, number>;
+
+export interface ParlayValidationResult {
+  valid: boolean;
+  error?: string;
+}
+
+export interface ParlayQuote {
+  pricingModel: typeof CORRELATION_PRICING_VERSION;
+  rawMultiplier: number;
+  multiplier: number;
+  rawPotentialPayout: number;
+  potentialPayout: number;
+  correlationDiscountPct: number;
+  correlationScore: number;
+}
 
 function getParlayOdds(input: ParlayPricingInput): number[] {
   if (typeof input === "number") {
@@ -130,6 +162,274 @@ export function getParlayMultiplier(input: ParlayPricingInput): number {
   const odds = getParlayOdds(input);
   if (!odds.length) return 0;
   return Math.round(odds.reduce((product, odd) => product * odd, 1) * 100) / 100;
+}
+
+function roundToTwo(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
+function normalizeEntityKey(value?: string): string {
+  return (value || "")
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function getMarketFamily(bet: BetLine): MarketFamily {
+  if (bet.category === "Match" && bet.shortDesc === "Match Total Runs") return "match_total_runs";
+  if (bet.category === "Match" && bet.shortDesc === "Match Total Wickets") return "match_total_wickets";
+  if (bet.category === "Match" && bet.shortDesc === "Match Total Sixes") return "match_total_sixes";
+  if (bet.category === "Match" && bet.shortDesc === "Highest Innings") return "highest_innings";
+  if (bet.category === "Extras") return "match_extras";
+  if (bet.category === "Innings" && bet.shortDesc.endsWith(" Total")) return "team_total";
+  if (bet.category === "Innings" && bet.shortDesc.endsWith(" Powerplay")) return "team_powerplay";
+  if (bet.category === "Opening" && bet.shortDesc.endsWith(" Opening Stand")) return "team_opening";
+  if (bet.category === "Batting" && bet.shortDesc.endsWith(" Top Score")) return "team_top_score";
+  if (bet.category === "Batting" && bet.isPlayerProp) return "player_runs";
+  if (bet.category === "Bowling" && bet.isPlayerProp) return "player_wickets";
+  return "other";
+}
+
+function getSelectionGroupKey(bet: BetLine): string {
+  const family = getMarketFamily(bet);
+
+  if (family === "player_runs" || family === "player_wickets") {
+    return `${family}:${normalizeEntityKey(bet.playerName)}`;
+  }
+
+  if (
+    family === "team_total" ||
+    family === "team_powerplay" ||
+    family === "team_opening" ||
+    family === "team_top_score"
+  ) {
+    return `${family}:${normalizeEntityKey(bet.teamName)}`;
+  }
+
+  return `${family}:${normalizeEntityKey(bet.shortDesc)}`;
+}
+
+function getSelectionGroupLabel(bet: BetLine): string {
+  const family = getMarketFamily(bet);
+
+  if (family === "player_runs") return `${bet.playerName} runs`;
+  if (family === "player_wickets") return `${bet.playerName} wickets`;
+  if (family === "team_total") return `${bet.teamName} total`;
+  if (family === "team_powerplay") return `${bet.teamName} powerplay`;
+  if (family === "team_opening") return `${bet.teamName} opening partnership`;
+  if (family === "team_top_score") return `${bet.teamName} top batter`;
+  if (family === "match_total_runs") return "match total runs";
+  if (family === "match_total_wickets") return "match total wickets";
+  if (family === "match_total_sixes") return "match total sixes";
+  if (family === "highest_innings") return "highest innings";
+  if (family === "match_extras") return "match extras";
+  return bet.shortDesc;
+}
+
+function getDirectionSign(direction: ParlayLeg["direction"]): number {
+  return direction === "over" || direction === "yes" ? 1 : -1;
+}
+
+function buildBoardTeams(bets: BetLine[]): string[] {
+  const seen = new Set<string>();
+  const teams: string[] = [];
+
+  for (const bet of bets) {
+    if (!bet.teamName) continue;
+    const key = normalizeEntityKey(bet.teamName);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    teams.push(bet.teamName);
+  }
+
+  return teams;
+}
+
+function getOpponentTeam(teamName: string | undefined, boardTeams: string[]): string | null {
+  const target = normalizeEntityKey(teamName);
+  if (!target) return null;
+  return boardTeams.find((team) => normalizeEntityKey(team) !== target) || null;
+}
+
+function addFactor(factors: CorrelationFactors, key: string | null, weight: number) {
+  if (!key || Math.abs(weight) < 0.001) return;
+  factors.set(key, (factors.get(key) || 0) + weight);
+}
+
+function buildCorrelationFactors(
+  bet: BetLine,
+  direction: ParlayLeg["direction"],
+  boardTeams: string[]
+): CorrelationFactors {
+  const factors = new Map<string, number>();
+  const sign = getDirectionSign(direction);
+  const family = getMarketFamily(bet);
+  const teamKey = bet.teamName ? `team:${normalizeEntityKey(bet.teamName)}:batting` : null;
+  const playerKey = bet.playerName
+    ? `player:${normalizeEntityKey(bet.playerName)}:${family}`
+    : null;
+  const opponentTeam = getOpponentTeam(bet.teamName, boardTeams);
+  const opponentKey = opponentTeam ? `team:${normalizeEntityKey(opponentTeam)}:batting` : null;
+
+  switch (family) {
+    case "match_total_runs":
+      addFactor(factors, "script:scoring", sign * 1);
+      boardTeams.forEach((team) =>
+        addFactor(factors, `team:${normalizeEntityKey(team)}:batting`, sign * 0.35)
+      );
+      break;
+    case "match_total_sixes":
+      addFactor(factors, "script:scoring", sign * 0.75);
+      break;
+    case "highest_innings":
+      addFactor(factors, "script:scoring", sign * 0.7);
+      break;
+    case "match_total_wickets":
+      addFactor(factors, "script:wickets", sign * 1);
+      addFactor(factors, "script:scoring", sign * -0.35);
+      break;
+    case "match_extras":
+      addFactor(factors, "script:wickets", sign * 0.15);
+      break;
+    case "team_total":
+      addFactor(factors, teamKey, sign * 1);
+      addFactor(factors, "script:scoring", sign * 0.65);
+      addFactor(factors, "script:wickets", sign * -0.25);
+      break;
+    case "team_powerplay":
+      addFactor(factors, teamKey, sign * 0.78);
+      addFactor(factors, "script:scoring", sign * 0.3);
+      break;
+    case "team_opening":
+      addFactor(factors, teamKey, sign * 0.82);
+      addFactor(factors, "script:wickets", sign * -0.2);
+      addFactor(factors, "script:scoring", sign * 0.22);
+      break;
+    case "team_top_score":
+      addFactor(factors, teamKey, sign * 0.62);
+      addFactor(factors, "script:scoring", sign * 0.18);
+      break;
+    case "player_runs":
+      addFactor(factors, playerKey, sign * 1);
+      addFactor(factors, teamKey, sign * 0.58);
+      addFactor(factors, "script:scoring", sign * 0.2);
+      break;
+    case "player_wickets":
+      addFactor(factors, playerKey, sign * 1);
+      addFactor(factors, opponentKey, sign * -0.92);
+      addFactor(factors, "script:wickets", sign * 0.82);
+      addFactor(factors, "script:scoring", sign * -0.25);
+      break;
+    default:
+      break;
+  }
+
+  return factors;
+}
+
+function getPairCorrelationScore(
+  left: CorrelationFactors,
+  right: CorrelationFactors
+): number {
+  let score = 0;
+
+  left.forEach((leftWeight, key) => {
+    const rightWeight = right.get(key);
+    if (rightWeight === undefined) return;
+    if (Math.sign(leftWeight) !== Math.sign(rightWeight)) return;
+
+    score += Math.min(Math.abs(leftWeight), Math.abs(rightWeight));
+  });
+
+  return Math.min(score, 1.35);
+}
+
+export function validateParlayLegs(
+  legs: ParlayLeg[],
+  bets: BetLine[]
+): ParlayValidationResult {
+  const betById = new Map(bets.map((bet) => [bet.id, bet]));
+  const seenGroups = new Map<string, BetLine>();
+
+  for (const leg of legs) {
+    const bet = betById.get(leg.betId);
+    if (!bet) continue;
+
+    const groupKey = getSelectionGroupKey(bet);
+    const previous = seenGroups.get(groupKey);
+    if (!previous) {
+      seenGroups.set(groupKey, bet);
+      continue;
+    }
+
+    if (bet.playerName && previous.playerName && bet.playerName === previous.playerName) {
+      return {
+        valid: false,
+        error: `Same-player ladders are not allowed. Keep just one ${getSelectionGroupLabel(bet)} leg.`,
+      };
+    }
+
+    return {
+      valid: false,
+      error: `Only one ${getSelectionGroupLabel(bet)} line is allowed in a single parlay.`,
+    };
+  }
+
+  return { valid: true };
+}
+
+export function quoteParlay(
+  betAmount: number,
+  legs: ParlayLeg[],
+  bets: BetLine[]
+): ParlayQuote {
+  const rawMultiplier = getParlayMultiplier(legs);
+  const rawPotentialPayout = calculateParlayPayout(betAmount, legs);
+
+  if (legs.length <= 1) {
+    return {
+      pricingModel: CORRELATION_PRICING_VERSION,
+      rawMultiplier,
+      multiplier: rawMultiplier,
+      rawPotentialPayout,
+      potentialPayout: rawPotentialPayout,
+      correlationDiscountPct: 0,
+      correlationScore: 0,
+    };
+  }
+
+  const boardTeams = buildBoardTeams(bets);
+  const betById = new Map(bets.map((bet) => [bet.id, bet]));
+  const factors = legs.map((leg) => {
+    const bet = betById.get(leg.betId);
+    return bet ? buildCorrelationFactors(bet, leg.direction, boardTeams) : new Map<string, number>();
+  });
+
+  let correlationScore = 0;
+
+  for (let i = 0; i < factors.length; i += 1) {
+    for (let j = i + 1; j < factors.length; j += 1) {
+      correlationScore += getPairCorrelationScore(factors[i], factors[j]);
+    }
+  }
+
+  const divisor = 1 + 0.16 * correlationScore + 0.04 * correlationScore * correlationScore;
+  const multiplier = roundToTwo(rawMultiplier / divisor);
+  const potentialPayout = roundToTwo(betAmount * multiplier);
+  const correlationDiscountPct =
+    rawMultiplier > 0 ? Math.max(0, 1 - multiplier / rawMultiplier) : 0;
+
+  return {
+    pricingModel: CORRELATION_PRICING_VERSION,
+    rawMultiplier,
+    multiplier,
+    rawPotentialPayout,
+    potentialPayout,
+    correlationDiscountPct,
+    correlationScore: roundToTwo(correlationScore),
+  };
 }
 
 export function formatOdds(decimalOdds: number): string {

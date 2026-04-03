@@ -81,6 +81,12 @@ export interface Parlay {
   status: "pending" | "won" | "lost" | "push";
   payout?: number;
   potentialPayout: number;
+  pricingModel?: "legacy" | "correlation-v1";
+  multiplier?: number;
+  rawMultiplier?: number;
+  rawPotentialPayout?: number;
+  correlationDiscountPct?: number;
+  correlationScore?: number;
 }
 
 export interface MatchBettingData {

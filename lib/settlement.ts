@@ -8,7 +8,12 @@ import {
   updateBetResult,
   updateParlayStatus,
 } from "@/lib/db";
-import { calculateParlayPayout, getMatchKickoffTime, isMatchCompleted } from "@/lib/utils";
+import {
+  calculateParlayPayout,
+  getMatchKickoffTime,
+  isMatchCompleted,
+  quoteParlay,
+} from "@/lib/utils";
 import { BetLine, IPLMatch } from "@/types";
 
 interface ResolvedBetInput {
@@ -631,13 +636,17 @@ export async function applyResolvedBetValues(
       continue;
     }
 
-    const winningLegOdds = parlay.legs
-      .filter((_, index) => legResults[index] === "won")
-      .map((leg) => leg.odds);
+    const winningLegs = parlay.legs.filter((_, index) => legResults[index] === "won");
+    const winningLegOdds = winningLegs.map((leg) => leg.odds);
+    const payout =
+      parlay.pricingModel === "correlation-v1"
+        ? quoteParlay(parlay.betAmount, winningLegs, updatedBets || []).potentialPayout
+        : calculateParlayPayout(parlay.betAmount, winningLegOdds);
+
     await updateParlayStatus(
       parlay.id,
       "won",
-      calculateParlayPayout(parlay.betAmount, winningLegOdds)
+      payout
     );
     updatedParlays += 1;
   }

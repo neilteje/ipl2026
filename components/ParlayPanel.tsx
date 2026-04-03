@@ -14,6 +14,8 @@ import {
   formatCurrency,
   formatOdds,
   cn,
+  quoteParlay,
+  validateParlayLegs,
 } from "@/lib/utils";
 import {
   TrendingUp,
@@ -50,9 +52,14 @@ export function ParlayPanel({
   const locked = !!lockedReason;
 
   const getBetForLeg = (leg: ParlayLeg) => bets.find((b) => b.id === leg.betId);
+  const validation = validateParlayLegs(legs, bets);
+  const quote =
+    validation.valid && legs.length > 0
+      ? quoteParlay(betAmount, legs, bets)
+      : null;
 
-  const multiplier = getParlayMultiplier(legs);
-  const potentialPayout = calculateParlayPayout(betAmount, legs);
+  const multiplier = quote?.multiplier ?? getParlayMultiplier(legs);
+  const potentialPayout = quote?.potentialPayout ?? calculateParlayPayout(betAmount, legs);
 
   const handleSubmit = async () => {
     if (locked || !currentUser || legs.length === 0 || betAmount <= 0) return;
@@ -91,9 +98,9 @@ export function ParlayPanel({
 
   return (
     <div className="flex flex-col h-full">
-      {lockedReason && (
+      {(lockedReason || validation.error) && (
         <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-100">
-          {lockedReason}
+          {lockedReason || validation.error}
         </div>
       )}
 
@@ -160,6 +167,11 @@ export function ParlayPanel({
           <span className="text-xl font-bold text-primary tabular-nums">{formatCurrency(potentialPayout)}</span>
         </div>
         <div className="text-xs text-muted-foreground text-right">on {formatCurrency(betAmount)} bet</div>
+        {quote && quote.correlationDiscountPct > 0.01 && (
+          <div className="mt-2 text-[11px] text-muted-foreground text-right">
+            Correlation haircut {Math.round(quote.correlationDiscountPct * 100)}% · Raw {quote.rawMultiplier}x
+          </div>
+        )}
       </div>
 
       {/* Bet amount + submitting as */}
@@ -213,7 +225,7 @@ export function ParlayPanel({
           <Button
             size="sm"
             onClick={handleSubmit}
-            disabled={locked || loading || !currentUser || legs.length === 0 || betAmount <= 0}
+            disabled={locked || loading || !currentUser || legs.length === 0 || betAmount <= 0 || !validation.valid}
             className="flex-1"
           >
             {loading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 mr-1" />}

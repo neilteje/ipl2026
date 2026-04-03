@@ -19,6 +19,8 @@ import {
   cn,
   getParlayMultiplier,
   formatCurrency,
+  quoteParlay,
+  validateParlayLegs,
   getBettingCloseTime,
   getMatchKickoffTime,
   getDisplayMatchName,
@@ -58,6 +60,7 @@ export default function MatchPage() {
   const [activeCategory, setActiveCategory] = useState<string>("All");
   const [match, setMatch] = useState<IPLMatch | null>(null);
   const [bettingMessage, setBettingMessage] = useState<string | null>(null);
+  const [didAutoSelectCompletedTab, setDidAutoSelectCompletedTab] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -100,11 +103,22 @@ export default function MatchPage() {
 
   const handleSelectLeg = (betId: string, direction: BetDirection, odds: number) => {
     if (match && !isBettingOpen(match)) return;
-    setParlayLegs((prev) => {
-      const exists = prev.find((l) => l.betId === betId);
-      if (exists) return prev.map((l) => l.betId === betId ? { ...l, direction, odds } : l);
-      return [...prev, { betId, direction, odds }];
-    });
+    const exists = parlayLegs.find((l) => l.betId === betId);
+    const nextLegs = exists
+      ? parlayLegs.map((l) => (l.betId === betId ? { ...l, direction, odds } : l))
+      : [...parlayLegs, { betId, direction, odds }];
+    const validation = validateParlayLegs(nextLegs, bets);
+
+    if (!validation.valid) {
+      toast({
+        title: "Invalid parlay combo",
+        description: validation.error,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setParlayLegs(nextLegs);
     setShowParlay(true);
   };
 
@@ -201,8 +215,24 @@ export default function MatchPage() {
     }
   }, [currentUserParlay, parlayLegs.length]);
 
+  useEffect(() => {
+    if (!match || didAutoSelectCompletedTab) return;
+
+    if (isMatchCompleted(match)) {
+      setActiveTab("parlays");
+    }
+
+    setDidAutoSelectCompletedTab(true);
+  }, [match, didAutoSelectCompletedTab]);
+
   const filteredBets =
     activeCategory === "All" ? bets : bets.filter((b) => b.category === activeCategory);
+  const parlayValidation = validateParlayLegs(parlayLegs, bets);
+  const parlayPreviewQuote =
+    parlayValidation.valid && parlayLegs.length > 0
+      ? quoteParlay(1, parlayLegs, bets)
+      : null;
+  const displayedParlayMultiplier = parlayPreviewQuote?.multiplier ?? getParlayMultiplier(parlayLegs);
 
   const categoryCounts = CATEGORIES.reduce(
     (acc, cat) => ({ ...acc, [cat]: bets.filter((b) => b.category === cat).length }),
@@ -263,7 +293,7 @@ export default function MatchPage() {
                 <ShoppingCart className="w-3 h-3" />
                 {parlayLegs.length} leg{parlayLegs.length > 1 ? "s" : ""}
                 {" · "}
-                {getParlayMultiplier(parlayLegs)}x
+                {displayedParlayMultiplier}x
               </Button>
             )}
           </div>
@@ -430,7 +460,7 @@ export default function MatchPage() {
                   Parlay · {parlayLegs.length} leg{parlayLegs.length > 1 ? "s" : ""}
                 </span>
                 <Badge className="border-primary/35 text-primary bg-card text-[10px] shadow-raised-sm">
-                  {getParlayMultiplier(parlayLegs)}x
+                  {displayedParlayMultiplier}x
                 </Badge>
               </div>
               {showParlay ? (
